@@ -19,6 +19,7 @@ export default function CreatorSubscriptionPage() {
     const [isSaving, setIsSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState(false);
+    const [premiumChecked, setPremiumChecked] = useState(false);
 
     const [formData, setFormData] = useState({
         price: '',
@@ -30,17 +31,24 @@ export default function CreatorSubscriptionPage() {
     useEffect(() => {
         if (!loading && !user) {
             router.push('/login');
-        } else if (user && user.premiumPlan !== 'premium') {
-            console.log('User premium plan:', user.premiumPlan);
-            // Refresh user data to check for recent premium purchase
-            refreshUser().then(() => {
-                // After refresh, check again
-                if (user.premiumPlan !== 'premium') {
-                    router.push('/premium');
-                }
-            });
+            return;
         }
-    }, [user, loading, router, refreshUser]);
+
+        if (!loading && user && !premiumChecked) {
+            setPremiumChecked(true);
+            
+            if (user.premiumPlan !== 'premium') {
+                console.log('User premium plan:', user.premiumPlan);
+                // Refresh user data to check for recent premium purchase
+                refreshUser().then((updatedUser) => {
+                    // Check if updated user has premium
+                    if (!updatedUser || updatedUser.premiumPlan !== 'premium') {
+                        router.push('/premium');
+                    }
+                });
+            }
+        }
+    }, [user, loading, premiumChecked, refreshUser, router]);
 
     useEffect(() => {
         const fetchSubscription = async () => {

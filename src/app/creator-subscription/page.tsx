@@ -9,9 +9,10 @@ import { Crown, DollarSign, Users, Save, X } from 'lucide-react';
 import { getCreatorSubscription, createCreatorSubscription, updateCreatorSubscription } from '@/services/subscription-service';
 import { CreatorSubscription } from '@/types';
 import PremiumBadge from '@/components/PremiumBadge';
+import { getUserData } from '@/services/auth-service';
 
 export default function CreatorSubscriptionPage() {
-    const { user, loading, refreshUser } = useAuth();
+    const { user, loading } = useAuth();
     const router = useRouter();
     const premiumCheckRef = useRef(false);
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -20,6 +21,7 @@ export default function CreatorSubscriptionPage() {
     const [isSaving, setIsSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState(false);
+    const [hasPremium, setHasPremium] = useState<boolean | null>(null);
 
     const [formData, setFormData] = useState({
         price: '',
@@ -29,26 +31,34 @@ export default function CreatorSubscriptionPage() {
     });
 
     useEffect(() => {
-        if (!loading && !user) {
-            router.push('/login');
-            return;
-        }
-
-        if (!loading && user && !premiumCheckRef.current) {
-            premiumCheckRef.current = true;
-            
-            if (user.premiumPlan !== 'premium') {
-                console.log('User premium plan:', user.premiumPlan);
-                // Refresh user data to check for recent premium purchase
-                refreshUser().then((updatedUser) => {
-                    // Check if updated user has premium
-                    if (!updatedUser || updatedUser.premiumPlan !== 'premium') {
-                        router.push('/premium');
-                    }
-                });
+        const checkPremiumStatus = async () => {
+            if (!loading && !user) {
+                router.push('/login');
+                return;
             }
-        }
-    }, [user, loading, refreshUser, router]);
+
+            if (!loading && user && !premiumCheckRef.current) {
+                premiumCheckRef.current = true;
+                
+                try {
+                    // Fetch fresh user data directly from Firestore
+                    const freshUserData = await getUserData(user.uid);
+                    
+                    console.log('Fresh user data premium plan:', freshUserData?.premiumPlan);
+                    console.log('Current user premium plan:', user.premiumPlan);
+                    
+                    // Set premium status
+                    const isPremium = freshUserData && freshUserData.premiumPlan === 'premium';
+                    setHasPremium(isPremium);
+                } catch (error) {
+                    console.error('Error checking premium status:', error);
+                    setHasPremium(false);
+                }
+            }
+        };
+
+        checkPremiumStatus();
+    }, [user, loading, router]);
 
     useEffect(() => {
         const fetchSubscription = async () => {
@@ -156,7 +166,7 @@ export default function CreatorSubscriptionPage() {
         }
     };
 
-    if (loading || isLoading) {
+    if (loading || hasPremium === null) {
         return (
             <div className="min-h-screen flex items-center justify-center">
                 <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[hsl(var(--primary))]"></div>
@@ -166,6 +176,34 @@ export default function CreatorSubscriptionPage() {
 
     if (!user) {
         return null;
+    }
+
+    if (!hasPremium) {
+        return (
+            <div className="min-h-screen bg-[hsl(var(--background))]">
+                <Header onMenuToggle={setIsSidebarOpen} />
+                <div className="flex">
+                    <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
+                    <main className="flex-1 overflow-auto">
+                        <div className="max-w-3xl mx-auto px-4 py-8 flex items-center justify-center min-h-screen">
+                            <div className="text-center">
+                                <Crown className="w-16 h-16 text-yellow-500 mx-auto mb-4" />
+                                <h1 className="text-3xl font-bold mb-2">Premium Required</h1>
+                                <p className="text-[hsl(var(--foreground-muted))] mb-6">
+                                    You need a premium plan to set up creator subscriptions and monetize your content.
+                                </p>
+                                <button
+                                    onClick={() => router.push('/premium')}
+                                    className="btn btn-primary"
+                                >
+                                    Upgrade to Premium
+                                </button>
+                            </div>
+                        </div>
+                    </main>
+                </div>
+            </div>
+        );
     }
 
     return (

@@ -84,7 +84,7 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
         return;
     }
 
-    if (type === 'premium_plan') {
+    if (type === 'premium' || type === 'premium_plan') {
         // Activate premium plan
         const userRef = adminDb.collection('users').doc(userId);
         const expiresAt = new Date();

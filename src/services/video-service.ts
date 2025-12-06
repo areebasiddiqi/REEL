@@ -51,6 +51,7 @@ export const createVideo = async (
 
         const video = {
             ...videoData,
+            creatorPhoto: videoData.creatorPhoto || '',
             views: 0,
             likes: 0,
             uploadedAt: Timestamp.fromDate(new Date()),

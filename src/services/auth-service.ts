@@ -168,17 +168,35 @@ export const logout = async (): Promise<void> => {
     }
 };
 
-// Get User Data from Firebase Auth
+// Get User Data from Firestore
 export const getUserData = async (uid: string): Promise<User | null> => {
     try {
-        // Get current user from Firebase Auth
-        const currentUser = auth.currentUser;
+        // Import here to avoid circular dependency
+        const { getDoc, doc } = await import('firebase/firestore');
+        const { db } = await import('@/lib/firebase.config');
 
-        if (!currentUser || currentUser.uid !== uid) {
+        const userDoc = await getDoc(doc(db, 'users', uid));
+
+        if (!userDoc.exists()) {
             return null;
         }
 
-        return firebaseUserToUser(currentUser);
+        const data = userDoc.data();
+        return {
+            uid: userDoc.id,
+            email: data.email || '',
+            displayName: data.displayName || 'User',
+            photoURL: data.photoURL || undefined,
+            role: data.role || 'viewer',
+            followers: data.followers || 0,
+            following: data.following || 0,
+            points: data.points || 0,
+            createdAt: data.createdAt?.toDate?.() || new Date(),
+            premiumPlan: data.premiumPlan,
+            premiumExpiresAt: data.premiumExpiresAt?.toDate?.(),
+            stripeCustomerId: data.stripeCustomerId,
+            subscriptionTier: data.subscriptionTier,
+        } as User;
     } catch (error: any) {
         console.warn('Error fetching user data:', error);
         return null;

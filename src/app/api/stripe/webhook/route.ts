@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { headers } from 'next/headers';
 import { verifyWebhookSignature } from '@/services/stripe-service';
-import { subscribeUserToCreator, unsubscribeUserFromCreator } from '@/services/subscription-service';
+import { unsubscribeUserFromCreator } from '@/services/subscription-service';
 import { Timestamp } from 'firebase-admin/firestore';
 import { adminDb } from '@/lib/firebase-admin';
 import Stripe from 'stripe';
@@ -105,11 +105,31 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
             return;
         }
 
-        await subscribeUserToCreator(
+        // Use admin SDK to create subscription
+        const subscription = {
             userId,
             creatorId,
-            session.subscription as string
-        );
+            subscriptionId: session.subscription as string,
+            status: 'active',
+            currentPeriodEnd: Timestamp.fromDate(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)),
+            createdAt: Timestamp.now(),
+        };
+
+        await adminDb
+            .collection('users')
+            .doc(userId)
+            .collection('subscriptions')
+            .doc(creatorId)
+            .set(subscription);
+
+        // Increment subscriber count
+        const creatorSubRef = adminDb.collection('creatorSubscriptions').doc(creatorId);
+        const creatorSubDoc = await creatorSubRef.get();
+        if (creatorSubDoc.exists) {
+            await creatorSubRef.update({
+                subscriberCount: (creatorSubDoc.data()?.subscriberCount || 0) + 1,
+            });
+        }
 
         console.log(`User ${userId} subscribed to creator ${creatorId}`);
     }

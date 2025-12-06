@@ -1,9 +1,19 @@
 import Stripe from 'stripe';
 
-// Initialize Stripe with secret key
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-    apiVersion: '2025-02-24.acacia',
-});
+// Lazy initialize Stripe with secret key
+let stripe: Stripe | null = null;
+
+const getStripe = (): Stripe => {
+    if (!stripe) {
+        if (!process.env.STRIPE_SECRET_KEY) {
+            throw new Error('STRIPE_SECRET_KEY environment variable is not set');
+        }
+        stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
+            apiVersion: '2025-02-24.acacia',
+        });
+    }
+    return stripe;
+};
 
 const PREMIUM_PLAN_PRICE = 10000; // $100.00 in cents
 const PLATFORM_FEE_PERCENT = 20; // 20% platform fee
@@ -30,7 +40,7 @@ export const createPremiumCheckout = async (
     userEmail: string
 ): Promise<string> => {
     try {
-        const session = await stripe.checkout.sessions.create({
+        const session = await getStripe().checkout.sessions.create({
             customer_email: userEmail,
             client_reference_id: userId,
             payment_method_types: ['card'],
@@ -78,7 +88,7 @@ export const createSubscriptionCheckout = async (
         // Calculate platform fee
         const platformFee = Math.round(price * (PLATFORM_FEE_PERCENT / 100));
 
-        const session = await stripe.checkout.sessions.create({
+        const session = await getStripe().checkout.sessions.create({
             customer_email: userEmail,
             client_reference_id: userId,
             payment_method_types: ['card'],
@@ -121,7 +131,7 @@ export const cancelSubscription = async (
     subscriptionId: string
 ): Promise<void> => {
     try {
-        await stripe.subscriptions.cancel(subscriptionId);
+        await getStripe().subscriptions.cancel(subscriptionId);
     } catch (error: any) {
         console.error('Error canceling subscription:', error);
         throw new Error(error.message || 'Failed to cancel subscription');
@@ -133,7 +143,7 @@ export const getCustomerSubscriptions = async (
     customerId: string
 ): Promise<Stripe.Subscription[]> => {
     try {
-        const subscriptions = await stripe.subscriptions.list({
+        const subscriptions = await getStripe().subscriptions.list({
             customer: customerId,
             status: 'active',
         });
@@ -150,7 +160,7 @@ export const verifyWebhookSignature = (
     signature: string
 ): Stripe.Event => {
     try {
-        return stripe.webhooks.constructEvent(
+        return getStripe().webhooks.constructEvent(
             payload,
             signature,
             process.env.STRIPE_WEBHOOK_SECRET!
@@ -161,4 +171,4 @@ export const verifyWebhookSignature = (
     }
 };
 
-export { stripe };
+export { getStripe };

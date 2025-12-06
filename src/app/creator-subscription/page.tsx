@@ -30,9 +30,12 @@ export default function CreatorSubscriptionPage() {
     useEffect(() => {
         if (!loading && !user) {
             router.push('/login');
-        } else if (user && user.premiumPlan !== 'premium') {
-            router.push('/premium');
         }
+        // Temporarily allow access for debugging
+        // else if (user && user.premiumPlan !== 'premium') {
+        //     console.log('User premium plan:', user.premiumPlan);
+        //     router.push('/premium');
+        // }
     }, [user, loading, router]);
 
     useEffect(() => {
@@ -59,8 +62,11 @@ export default function CreatorSubscriptionPage() {
             }
         };
 
-        if (user?.premiumPlan === 'premium') {
+        // Run for any logged-in user
+        if (user) {
             fetchSubscription();
+        } else {
+            setIsLoading(false);
         }
     }, [user]);
 
@@ -146,7 +152,7 @@ export default function CreatorSubscriptionPage() {
         );
     }
 
-    if (!user || user.premiumPlan !== 'premium') {
+    if (!user) {
         return null;
     }
 

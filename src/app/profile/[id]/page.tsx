@@ -175,12 +175,11 @@ export default function ProfilePage() {
     const handleSubscribe = async () => {
         if (!currentUser || !profileUser || !creatorSubscription) return;
 
-        // Temporarily disabled - allow all users to subscribe
-        // Check if user has premium
-        // if (currentUser.premiumPlan !== 'premium') {
-        //     router.push('/premium');
-        //     return;
-        // }
+        if (currentUser.premiumPlan !== 'premium') {
+            alert('You need a premium plan to subscribe to creators. Upgrade now!');
+            router.push('/premium');
+            return;
+        }
 
         try {
             setProcessingSubscription(true);

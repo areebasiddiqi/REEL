@@ -30,12 +30,10 @@ export default function CreatorSubscriptionPage() {
     useEffect(() => {
         if (!loading && !user) {
             router.push('/login');
+        } else if (user && user.premiumPlan !== 'premium') {
+            console.log('User premium plan:', user.premiumPlan);
+            router.push('/premium');
         }
-        // Temporarily allow access for debugging
-        // else if (user && user.premiumPlan !== 'premium') {
-        //     console.log('User premium plan:', user.premiumPlan);
-        //     router.push('/premium');
-        // }
     }, [user, loading, router]);
 
     useEffect(() => {

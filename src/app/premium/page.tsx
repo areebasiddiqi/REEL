@@ -18,6 +18,12 @@ export default function PremiumPage() {
         return null;
     }
 
+    // Redirect if user already has premium
+    if (!loading && user && user.premiumPlan === 'premium') {
+        router.push('/live');
+        return null;
+    }
+
     const handleUpgrade = async () => {
         if (!user) return;
 

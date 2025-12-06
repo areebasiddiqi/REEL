@@ -169,7 +169,7 @@ export const submitChallengeEntry = async (
             challengeId,
             userId,
             userName,
-            userPhoto,
+            userPhoto: userPhoto || '',
             submissionUrl,
             description,
             submittedAt: Timestamp.fromDate(new Date()),

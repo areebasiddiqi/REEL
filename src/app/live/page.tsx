@@ -58,6 +58,20 @@ export default function LivePage() {
         return null;
     }
 
+    const formatDuration = (startedAt: Date, endedAt?: Date) => {
+        const start = new Date(startedAt);
+        const end = endedAt ? new Date(endedAt) : new Date();
+        const diffMs = end.getTime() - start.getTime();
+        const diffMins = Math.floor(diffMs / 60000);
+        
+        if (diffMins < 60) {
+            return `${diffMins}m`;
+        }
+        const hours = Math.floor(diffMins / 60);
+        const mins = diffMins % 60;
+        return `${hours}h ${mins}m`;
+    };
+
     return (
         <div className="min-h-screen bg-[hsl(var(--background))]">
             <Header onMenuToggle={setIsSidebarOpen} />
@@ -160,7 +174,13 @@ export default function LivePage() {
                                             {/* Viewer Count Overlay */}
                                             <div className="absolute bottom-2 left-2 flex items-center gap-1 bg-black/60 text-white px-2 py-1 rounded text-xs">
                                                 <Eye className="w-3 h-3" />
-                                                {stream.viewerCount > 0 ? stream.viewerCount.toLocaleString() : 'Not started'}
+                                                {stream.status === 'ended' ? (
+                                                    formatDuration(stream.startedAt, stream.endedAt)
+                                                ) : stream.viewerCount > 0 ? (
+                                                    stream.viewerCount.toLocaleString()
+                                                ) : (
+                                                    'Not started'
+                                                )}
                                             </div>
                                         </div>
 

@@ -4,11 +4,12 @@ import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
-import { Heart, Share2, MessageCircle, Users, Volume2, Maximize, ArrowLeft, Send, Mic, MicOff, Clock } from 'lucide-react';
+import { Heart, Share2, MessageCircle, Users, Volume2, Maximize, ArrowLeft, Send, Mic, MicOff, Clock, CheckCircle, RotateCcw, UserPlus, UserCheck } from 'lucide-react';
 import { getLivestream, endLivestream } from '@/services/livestream-service';
 import { postLivestreamComment, subscribeLivestreamComments } from '@/services/comment-service';
 import { streamService } from '@/services/stream-service';
 import { webrtcService } from '@/services/webrtc-service';
+import { followCreator, unfollowCreator, isFollowing as checkIsFollowing } from '@/services/follow-service';
 import { Livestream, LivestreamComment } from '@/types';
 
 export default function LiveStreamPage() {
@@ -24,6 +25,10 @@ export default function LiveStreamPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [isMuted, setIsMuted] = useState(false);
+    const [hasVideoStream, setHasVideoStream] = useState(false);
+    const [streamDuration, setStreamDuration] = useState<string>('');
+    const [isFollowing, setIsFollowing] = useState(false);
+    const [isProcessingFollow, setIsProcessingFollow] = useState(false);
 
     useEffect(() => {
         if (!loading && !user) {
@@ -31,18 +36,77 @@ export default function LiveStreamPage() {
         }
     }, [user, loading, router]);
 
+    const handleFollowToggle = async () => {
+        if (!user || !livestream) return;
+
+        setIsProcessingFollow(true);
+        try {
+            if (isFollowing) {
+                await unfollowCreator(user.uid, livestream.creatorId);
+                setIsFollowing(false);
+            } else {
+                await followCreator(user.uid, livestream.creatorId);
+                setIsFollowing(true);
+            }
+        } catch (error: any) {
+            console.error('Error toggling follow:', error);
+            alert(error.message || 'Failed to update follow status');
+        } finally {
+            setIsProcessingFollow(false);
+        }
+    };
+
     const handleEndStream = async () => {
         if (!livestream || !user) return;
 
         if (confirm('Are you sure you want to end this stream?')) {
             try {
                 await endLivestream(livestream.id);
+                
+                // Reset viewer count to 0 when stream ends
+                await streamService.resetViewerCount(livestream.id);
+                
+                // Calculate stream duration
+                if (livestream.startedAt && livestream.endedAt) {
+                    const durationMs = livestream.endedAt.getTime() - livestream.startedAt.getTime();
+                    const hours = Math.floor(durationMs / (1000 * 60 * 60));
+                    const minutes = Math.floor((durationMs % (1000 * 60 * 60)) / (1000 * 60));
+                    const seconds = Math.floor((durationMs % (1000 * 60)) / 1000);
+                    
+                    let duration = '';
+                    if (hours > 0) {
+                        duration = `${hours}h ${minutes}m`;
+                    } else if (minutes > 0) {
+                        duration = `${minutes}m ${seconds}s`;
+                    } else {
+                        duration = `${seconds}s`;
+                    }
+                    setStreamDuration(duration);
+                }
                 // Update local state immediately
-                setLivestream(prev => prev ? { ...prev, status: 'ended' } : null);
+                setLivestream(prev => prev ? { ...prev, status: 'ended', viewerCount: 0 } : null);
             } catch (err) {
                 console.error('Error ending stream:', err);
                 alert('Failed to end stream');
             }
+        }
+    };
+
+    const calculateStreamDuration = () => {
+        if (!livestream?.startedAt) return '';
+        
+        const endTime = livestream.endedAt || new Date();
+        const durationMs = endTime.getTime() - livestream.startedAt.getTime();
+        const hours = Math.floor(durationMs / (1000 * 60 * 60));
+        const minutes = Math.floor((durationMs % (1000 * 60 * 60)) / (1000 * 60));
+        const seconds = Math.floor((durationMs % (1000 * 60)) / 1000);
+        
+        if (hours > 0) {
+            return `${hours}h ${minutes}m`;
+        } else if (minutes > 0) {
+            return `${minutes}m ${seconds}s`;
+        } else {
+            return `${seconds}s`;
         }
     };
 
@@ -70,6 +134,13 @@ export default function LiveStreamPage() {
             if (isCreator) {
                 // CREATOR MODE: Initialize Camera & Start Hosting
                 try {
+                    // Wait for videoRef to be available (DOM render)
+                    let attempts = 0;
+                    while (!videoRef.current && attempts < 10) {
+                        await new Promise(resolve => setTimeout(resolve, 100));
+                        attempts++;
+                    }
+
                     if (videoRef.current) {
                         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
                             throw new Error('Camera access not supported');
@@ -108,7 +179,7 @@ export default function LiveStreamPage() {
                             cleanup();
                         }
                     } else {
-                        console.error('❌ videoRef is null');
+                        console.error('❌ videoRef is null after waiting. DOM may not have rendered the video element.');
                     }
                 } catch (err: any) {
                     console.error('❌ Camera/Hosting error:', err.message);
@@ -184,6 +255,12 @@ export default function LiveStreamPage() {
                 const streamData = await getLivestream(params.id as string);
                 setLivestream(streamData);
 
+                // Check following status
+                if (user && streamData && streamData.creatorId !== user.uid) {
+                    const following = await checkIsFollowing(user.uid, streamData.creatorId);
+                    setIsFollowing(following);
+                }
+
                 // Only add viewer if stream is live
                 if (streamData?.status === 'live') {
                     await streamService.addViewer(params.id as string);
@@ -207,15 +284,18 @@ export default function LiveStreamPage() {
         // Cleanup: remove viewer when leaving and unsubscribe
         return () => {
             if (params.id) {
-                streamService.removeViewer(params.id as string).catch((err) => {
-                    console.warn('Failed to remove viewer:', err);
-                });
+                // Only remove viewer if stream is still live
+                if (livestream?.status === 'live') {
+                    streamService.removeViewer(params.id as string).catch((err) => {
+                        console.warn('Failed to remove viewer:', err);
+                    });
+                }
             }
             if (unsubscribeComments) {
                 unsubscribeComments();
             }
         };
-    }, [params.id]);
+    }, [params.id, livestream?.status]);
 
     // Poll for updated viewer count every 5 seconds
     useEffect(() => {
@@ -324,29 +404,79 @@ export default function LiveStreamPage() {
                     <div className="lg:col-span-2">
                         {/* Video Player */}
                         <div className={`relative bg-black rounded-xl overflow-hidden mb-6 ${isFullscreen ? 'fixed inset-0 z-50 rounded-none' : ''}`}>
+                            {/* Video Element - Always in DOM */}
+                            <video
+                                ref={videoRef}
+                                autoPlay
+                                playsInline
+                                muted={isMuted}
+                                controls={false}
+                                className="w-full h-full aspect-video object-cover bg-black"
+                                onLoadedMetadata={() => {
+                                    console.log('🎬 Video metadata loaded');
+                                    setHasVideoStream(true);
+                                }}
+                                onPlay={() => {
+                                    console.log('▶️ Video playing event');
+                                    setHasVideoStream(true);
+                                }}
+                                onPause={() => console.log('⏸️ Video pause event')}
+                                onError={(e) => console.error('❌ Video error event:', e)}
+                            />
+
+                            {/* Overlay Messages */}
                             {livestream?.status === 'ended' ? (
-                                <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/90 text-white z-10">
-                                    <Clock className="w-16 h-16 mb-4 text-[hsl(var(--foreground-muted))]" />
-                                    <h2 className="text-2xl font-bold mb-2">Stream Ended</h2>
-                                    <p className="text-[hsl(var(--foreground-muted))]">This livestream has finished.</p>
-                                    <p className="text-sm text-[hsl(var(--foreground-subtle))] mt-4">
-                                        (Video recording is not available in this demo)
-                                    </p>
+                                <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-black/90 to-black/70 text-white z-10 aspect-video">
+                                    <div className="text-center">
+                                        <div className="mb-6 flex justify-center">
+                                            <CheckCircle className="w-20 h-20 text-green-500" />
+                                        </div>
+                                        <h2 className="text-4xl font-bold mb-2">Stream Ended</h2>
+                                        <p className="text-[hsl(var(--foreground-muted))] text-lg mb-6">
+                                            Thanks for watching!
+                                        </p>
+                                        
+                                        {/* Stream Stats */}
+                                        <div className="bg-white/10 backdrop-blur-sm rounded-lg p-6 mb-6 max-w-sm mx-auto">
+                                            <div className="flex items-center justify-between mb-4 pb-4 border-b border-white/20">
+                                                <span className="text-[hsl(var(--foreground-muted))]">Stream Duration:</span>
+                                                <span className="font-bold text-lg">{calculateStreamDuration()}</span>
+                                            </div>
+                                            <div className="flex items-center justify-between">
+                                                <span className="text-[hsl(var(--foreground-muted))]">Peak Viewers:</span>
+                                                <span className="font-bold text-lg">{livestream?.viewerCount.toLocaleString() || 0}</span>
+                                            </div>
+                                        </div>
+
+                                        {/* Action Buttons */}
+                                        <div className="flex gap-3 justify-center">
+                                            <button
+                                                onClick={() => router.push('/live')}
+                                                className="flex items-center gap-2 px-6 py-2 bg-[hsl(var(--primary))] hover:bg-[hsl(var(--primary))]/80 text-white rounded-lg font-medium transition-colors"
+                                            >
+                                                <RotateCcw className="w-4 h-4" />
+                                                Watch Another Stream
+                                            </button>
+                                        </div>
+                                    </div>
                                 </div>
-                            ) : (
-                                <video
-                                    ref={videoRef}
-                                    autoPlay
-                                    playsInline
-                                    muted={isMuted}
-                                    controls={false}
-                                    className="w-full h-full aspect-video object-cover bg-black"
-                                    onLoadedMetadata={() => console.log('🎬 Video metadata loaded')}
-                                    onPlay={() => console.log('▶️ Video playing event')}
-                                    onPause={() => console.log('⏸️ Video pause event')}
-                                    onError={(e) => console.error('❌ Video error event:', e)}
-                                />
-                            )}
+                            ) : !hasVideoStream && livestream?.status === 'live' ? (
+                                <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-black/80 to-black/60 text-white z-10 aspect-video">
+                                    <div className="text-center">
+                                        <div className="mb-6 flex justify-center">
+                                            <div className="relative w-20 h-20">
+                                                <div className="absolute inset-0 rounded-full border-4 border-[hsl(var(--primary))]/30"></div>
+                                                <div className="absolute inset-0 rounded-full border-4 border-transparent border-t-[hsl(var(--primary))] animate-spin"></div>
+                                            </div>
+                                        </div>
+                                        <h2 className="text-3xl font-bold mb-2">Streamer is Preparing</h2>
+                                        <p className="text-[hsl(var(--foreground-muted))] text-lg">Setting up camera and audio...</p>
+                                        <p className="text-sm text-[hsl(var(--foreground-subtle))] mt-4">
+                                            Stream will start shortly
+                                        </p>
+                                    </div>
+                                </div>
+                            ) : null}
 
                             {/* Video Controls (Only show if live) */}
                             {livestream?.status === 'live' && (
@@ -412,7 +542,28 @@ export default function LiveStreamPage() {
                                                 <p className="text-sm text-[hsl(var(--foreground-muted))]">Creator</p>
                                             </div>
                                         </div>
-                                        <button className="btn btn-primary">Follow</button>
+                                        {user?.uid !== livestream.creatorId && (
+                                            <button
+                                                onClick={handleFollowToggle}
+                                                disabled={isProcessingFollow}
+                                                className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all disabled:opacity-50 ${isFollowing
+                                                    ? 'bg-[hsl(var(--surface))] text-[hsl(var(--foreground-muted))] hover:bg-[hsl(var(--surface-elevated))]'
+                                                    : 'bg-[hsl(var(--primary))] text-white hover:opacity-90'
+                                                    }`}
+                                            >
+                                                {isFollowing ? (
+                                                    <>
+                                                        <UserCheck className="w-4 h-4" />
+                                                        Following
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <UserPlus className="w-4 h-4" />
+                                                        Follow
+                                                    </>
+                                                )}
+                                            </button>
+                                        )}
                                     </div>
 
                                     {/* Description */}

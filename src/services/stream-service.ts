@@ -44,6 +44,20 @@ export const streamService = {
     removeViewer: async (livestreamId: string) => {
         try {
             const docRef = doc(db, 'livestreams', livestreamId);
+            const docSnap = await getDoc(docRef);
+            
+            if (!docSnap.exists()) {
+                return null;
+            }
+
+            const currentCount = docSnap.data()?.viewerCount || 0;
+            
+            // Prevent viewer count from going negative
+            if (currentCount <= 0) {
+                console.log('Viewer count already at 0, skipping removal');
+                return docSnap.data();
+            }
+
             await updateDoc(docRef, {
                 viewerCount: increment(-1)
             });
@@ -72,6 +86,21 @@ export const streamService = {
         } catch (error) {
             console.error('Error polling viewer count:', error);
             return 0;
+        }
+    },
+
+    // Reset viewer count to 0 when stream ends
+    resetViewerCount: async (livestreamId: string) => {
+        try {
+            const docRef = doc(db, 'livestreams', livestreamId);
+            await updateDoc(docRef, {
+                viewerCount: 0
+            });
+            console.log('Viewer count reset to 0');
+            return true;
+        } catch (error) {
+            console.error('Error resetting viewer count:', error);
+            return false;
         }
     },
 };

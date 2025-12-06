@@ -16,6 +16,7 @@ import {
     TrendingUp,
     Users,
     Trophy,
+    Crown,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -47,6 +48,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         { id: 'profile', label: 'Profile', href: user ? `/profile/${user.uid}` : '/profile', icon: Users },
         { id: 'friends', label: 'Friends', href: '/friends', icon: Users },
         { id: 'messages', label: 'Messages', href: '/messages', icon: Users },
+        { id: 'subscriptions', label: 'Subscriptions', href: '/subscriptions', icon: Crown },
     ];
 
     const settingsItems = [
@@ -86,7 +88,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                 className={`fixed md:sticky top-[61px] left-0 h-[calc(100vh-61px)] w-64 bg-[hsl(var(--background))] border-r border-[hsl(var(--border))] overflow-y-auto transition-transform duration-300 z-40 md:z-0 ${isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
                     }`}
             >
-                <nav className="p-4 space-y-1">
+                <nav className="p-4 space-y-1 pb-24">
                     {/* Main Navigation */}
                     <div className="space-y-1 mb-6">
                         {navItems.map((item) => (
@@ -136,9 +138,9 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                 </nav>
 
                 {/* Footer Info */}
-                <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-[hsl(var(--border))] bg-[hsl(var(--surface))]">
+                <div className="sticky bottom-0 p-4 border-t border-[hsl(var(--border))] bg-[hsl(var(--surface))] z-50">
                     <p className="text-xs text-[hsl(var(--foreground-subtle))] text-center">
-                        © 2024 ReelTalk. All rights reserved.
+                        © 2026 ReelTalk. All rights reserved.
                     </p>
                 </div>
             </aside>

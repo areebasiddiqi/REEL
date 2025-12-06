@@ -59,7 +59,19 @@ export default function ProfilePage() {
                 setProfileUser(profile);
 
                 // Fetch user's videos
-                const userVideos = await getUserVideos(userId);
+                let userVideos = await getUserVideos(userId);
+                
+                // Filter videos based on subscription status
+                if (currentUser && currentUser.uid !== userId) {
+                    const { canAccessVideo } = await import('@/services/subscription-service');
+                    userVideos = await Promise.all(
+                        userVideos.map(async (video) => {
+                            const canAccess = await canAccessVideo(currentUser.uid, video);
+                            return { video, canAccess };
+                        })
+                    ).then(results => results.filter(r => r.canAccess).map(r => r.video));
+                }
+                
                 setVideos(userVideos);
 
                 // Fetch user's challenges
@@ -300,10 +312,16 @@ export default function ProfilePage() {
                                 {/* Action Buttons */}
                                 <div className="flex flex-col gap-2">
                                     {currentUser.uid === profileUser.uid ? (
-                                        <Link href="/settings" className="btn btn-secondary">
-                                            <Settings className="w-4 h-4 mr-2" />
-                                            Edit Profile
-                                        </Link>
+                                        <>
+                                            <Link href="/settings" className="btn btn-secondary">
+                                                <Settings className="w-4 h-4 mr-2" />
+                                                Edit Profile
+                                            </Link>
+                                            <Link href="/creator-subscription" className="btn btn-primary">
+                                                <Trophy className="w-4 h-4 mr-2" />
+                                                Creator Subscription
+                                            </Link>
+                                        </>
                                     ) : (
                                         <>
                                             <div className="flex gap-2">

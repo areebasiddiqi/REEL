@@ -5,6 +5,8 @@ import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, Plus, X, Upload as UploadIcon, AlertCircle } from 'lucide-react';
+import Header from '@/components/Header';
+import Sidebar from '@/components/Sidebar';
 import { uploadVideo, createVideo } from '@/services/video-service';
 import { getDownloadURL, ref } from 'firebase/storage';
 import { storage } from '@/lib/firebase.config';
@@ -22,6 +24,7 @@ export default function UploadPage() {
     const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
     const [thumbnailPreview, setThumbnailPreview] = useState<string | null>(null);
     const thumbnailInputRef = useRef<HTMLInputElement>(null);
+    const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
     // Form state
     const [formData, setFormData] = useState({
@@ -281,26 +284,14 @@ export default function UploadPage() {
     };
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-[hsl(var(--background))] via-[hsl(var(--surface))] to-[hsl(var(--background))]">
-            {/* Header */}
-            <header className="glass-card sticky top-0 z-50 border-b border-[hsl(var(--border))]">
-                <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                        <button
-                            onClick={() => router.back()}
-                            className="p-2 hover:bg-[hsl(var(--surface))] rounded-lg transition-colors"
-                        >
-                            <ArrowLeft className="w-5 h-5" />
-                        </button>
-                        <Link href="/dashboard" className="text-2xl font-bold gradient-text">
-                            ReelTalk
-                        </Link>
-                    </div>
-                </div>
-            </header>
+        <div className="min-h-screen bg-[hsl(var(--background))]">
+            <Header onMenuToggle={setIsSidebarOpen} />
+            <div className="flex">
+                <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
 
-            {/* Main Content */}
-            <main className="max-w-3xl mx-auto px-4 py-8">
+                {/* Main Content */}
+                <main className="flex-1 overflow-auto">
+                    <div className="max-w-3xl mx-auto px-4 py-8">
                 {/* Page Title */}
                 <div className="mb-8">
                     <h1 className="text-4xl font-bold mb-2">Upload Video</h1>
@@ -587,7 +578,9 @@ export default function UploadPage() {
                         <li>✓ Keep file size under 500MB for faster uploads</li>
                     </ul>
                 </div>
-            </main>
+                    </div>
+                </main>
+            </div>
         </div>
     );
 }

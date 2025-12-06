@@ -20,6 +20,7 @@ import {
 } from 'firebase/firestore';
 import { storage, db } from '@/lib/firebase.config';
 import { Video } from '@/types';
+import { isSubscribedTo } from './subscription-service';
 
 // Upload video to Firebase Storage
 export const uploadVideo = (
@@ -108,6 +109,58 @@ export const getPublicVideos = async (): Promise<Video[]> => {
         });
     } catch (error) {
         console.error('Error fetching videos:', error);
+        return [];
+    }
+};
+
+// Get all videos accessible to a user (public + subscriber-only if subscribed)
+export const getAccessibleVideos = async (userId: string | undefined): Promise<Video[]> => {
+    try {
+        // Get all ready videos
+        const q = query(
+            collection(db, 'videos'),
+            where('status', '==', 'ready'),
+            orderBy('uploadedAt', 'desc'),
+            limit(100)
+        );
+
+        const querySnapshot = await getDocs(q);
+        const allVideos = querySnapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
+                id: doc.id,
+                ...data,
+                uploadedAt: data.uploadedAt.toDate(),
+            } as Video;
+        });
+
+        // If no user, return only public videos
+        if (!userId) {
+            return allVideos.filter(v => v.privacy === 'public');
+        }
+
+        // Filter videos based on user's subscription status
+        const accessibleVideos: Video[] = [];
+        for (const video of allVideos) {
+            if (video.privacy === 'public') {
+                accessibleVideos.push(video);
+            } else if (video.privacy === 'subscribers') {
+                // Check if user is subscribed to this creator
+                const isSubscribed = await isSubscribedTo(userId, video.creatorId);
+                if (isSubscribed) {
+                    accessibleVideos.push(video);
+                }
+            } else if (video.privacy === 'members') {
+                // Check if user is the creator
+                if (userId === video.creatorId) {
+                    accessibleVideos.push(video);
+                }
+            }
+        }
+
+        return accessibleVideos;
+    } catch (error) {
+        console.error('Error fetching accessible videos:', error);
         return [];
     }
 };

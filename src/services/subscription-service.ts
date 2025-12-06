@@ -190,7 +190,7 @@ export const canAccessVideo = async (
 ): Promise<boolean> => {
     try {
         // Public videos are always accessible
-        if (video.privacy === 'public' && !video.requiresSubscription) {
+        if (video.privacy === 'public') {
             return true;
         }
 
@@ -204,7 +204,17 @@ export const canAccessVideo = async (
             return true;
         }
 
-        // Check if video requires subscription
+        // Check if video requires subscription (privacy: 'subscribers')
+        if (video.privacy === 'subscribers') {
+            return await isSubscribedTo(userId, video.creatorId);
+        }
+
+        // Members-only videos are only for the creator
+        if (video.privacy === 'members') {
+            return false;
+        }
+
+        // Fallback for requiresSubscription field (legacy support)
         if (video.requiresSubscription) {
             return await isSubscribedTo(userId, video.creatorId);
         }

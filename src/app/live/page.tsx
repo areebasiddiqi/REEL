@@ -118,9 +118,17 @@ export default function LivePage() {
                                     >
                                         {/* Thumbnail */}
                                         <div className="relative bg-gradient-to-br from-[hsl(var(--primary))] to-[hsl(var(--secondary))] h-56 overflow-hidden rounded-lg mb-3">
-                                            <div className="absolute inset-0 flex items-center justify-center">
-                                                <Play className="w-12 h-12 text-white opacity-50 group-hover:opacity-100 transition-opacity" />
-                                            </div>
+                                            {stream.thumbnailUrl ? (
+                                                <img
+                                                    src={stream.thumbnailUrl}
+                                                    alt={stream.title}
+                                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                                />
+                                            ) : (
+                                                <div className="absolute inset-0 flex items-center justify-center">
+                                                    <Play className="w-12 h-12 text-white opacity-50 group-hover:opacity-100 transition-opacity" />
+                                                </div>
+                                            )}
 
                                             {/* Status Badge */}
                                             <div className="absolute top-2 right-2">

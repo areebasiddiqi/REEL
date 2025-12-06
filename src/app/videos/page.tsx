@@ -5,18 +5,21 @@ import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Play, Search, Filter, Eye, Heart, Calendar, Upload } from 'lucide-react';
-import { getPublicVideos } from '@/services/video-service';
+import Header from '@/components/Header';
+import Sidebar from '@/components/Sidebar';
+import { getAccessibleVideos } from '@/services/video-service';
 import { Video } from '@/types';
 
 export default function VideosPage() {
     const { user, loading } = useAuth();
     const router = useRouter();
     const [searchQuery, setSearchQuery] = useState('');
-    const [filterPrivacy, setFilterPrivacy] = useState<'all' | 'public' | 'subscribers' | 'members'>('public');
+    const [filterPrivacy, setFilterPrivacy] = useState<'all' | 'public' | 'subscribers' | 'members'>('all');
     const [videos, setVideos] = useState<Video[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [filteredVideos, setFilteredVideos] = useState<Video[]>([]);
+    const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
     useEffect(() => {
         if (!loading && !user) {
@@ -30,7 +33,7 @@ export default function VideosPage() {
             try {
                 setIsLoading(true);
                 setError(null);
-                const data = await getPublicVideos();
+                const data = await getAccessibleVideos(user?.uid);
                 setVideos(data);
             } catch (err: any) {
                 setError(err.message || 'Failed to fetch videos');
@@ -40,8 +43,10 @@ export default function VideosPage() {
             }
         };
 
-        fetchVideos();
-    }, []);
+        if (!loading) {
+            fetchVideos();
+        }
+    }, [user?.uid, loading]);
 
     // Filter videos based on search query
     useEffect(() => {
@@ -94,26 +99,14 @@ export default function VideosPage() {
     }
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-[hsl(var(--background))] via-[hsl(var(--surface))] to-[hsl(var(--background))]">
-            {/* Header */}
-            <header className="glass-card sticky top-0 z-50 border-b border-[hsl(var(--border))]">
-                <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
-                    <Link href="/live" className="text-2xl font-bold gradient-text">
-                        ReelTalk
-                    </Link>
-                    <div className="flex items-center gap-4">
-                        <Link href="/live" className="text-[hsl(var(--foreground-muted))] hover:text-[hsl(var(--foreground))] transition-colors">
-                            Home
-                        </Link>
-                        <Link href="/live" className="text-[hsl(var(--foreground-muted))] hover:text-[hsl(var(--foreground))] transition-colors">
-                            Live
-                        </Link>
-                    </div>
-                </div>
-            </header>
+        <div className="min-h-screen bg-[hsl(var(--background))]">
+            <Header onMenuToggle={setIsSidebarOpen} />
+            <div className="flex">
+                <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
 
-            {/* Main Content */}
-            <main className="max-w-7xl mx-auto px-4 py-8">
+                {/* Main Content */}
+                <main className="flex-1 overflow-auto">
+                    <div className="max-w-7xl mx-auto px-4 py-8">
                 {/* Page Title */}
                 <div className="mb-8 flex items-center justify-between">
                     <div>
@@ -153,7 +146,10 @@ export default function VideosPage() {
                                             : 'bg-[hsl(var(--surface))] text-[hsl(var(--foreground-muted))] hover:bg-[hsl(var(--surface-hover))]'
                                     }`}
                                 >
-                                    {privacy.charAt(0).toUpperCase() + privacy.slice(1)}
+                                    {privacy === 'all' && 'All Videos'}
+                                    {privacy === 'public' && 'Public'}
+                                    {privacy === 'subscribers' && '👑 Subscribers'}
+                                    {privacy === 'members' && '⭐ Members'}
                                 </button>
                             ))}
                         </div>
@@ -197,8 +193,28 @@ export default function VideosPage() {
                                     </div>
 
                                     {/* Privacy Badge */}
-                                    <div className="absolute top-3 left-3 bg-[hsl(var(--surface))] text-[hsl(var(--foreground))] px-2 py-1 rounded-full text-xs font-medium">
-                                        {video.privacy.charAt(0).toUpperCase() + video.privacy.slice(1)}
+                                    <div className={`absolute top-3 left-3 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 ${
+                                        video.privacy === 'subscribers'
+                                            ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg'
+                                            : video.privacy === 'members'
+                                            ? 'bg-gradient-to-r from-yellow-500 to-orange-500 text-white'
+                                            : 'bg-[hsl(var(--surface))] text-[hsl(var(--foreground))]'
+                                    }`}>
+                                        {video.privacy === 'subscribers' && (
+                                            <>
+                                                <span>👑</span>
+                                                <span>Subscribers Only</span>
+                                            </>
+                                        )}
+                                        {video.privacy === 'members' && (
+                                            <>
+                                                <span>⭐</span>
+                                                <span>Members Only</span>
+                                            </>
+                                        )}
+                                        {video.privacy === 'public' && (
+                                            <span>Public</span>
+                                        )}
                                     </div>
                                 </div>
 
@@ -271,7 +287,9 @@ export default function VideosPage() {
                         <p className="text-[hsl(var(--foreground-subtle))] text-sm mt-2">Try adjusting your search or filters</p>
                     </div>
                 )}
-            </main>
+                    </div>
+                </main>
+            </div>
         </div>
     );
 }

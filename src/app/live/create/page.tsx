@@ -1,11 +1,15 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, Plus, X } from 'lucide-react';
+import { ArrowLeft, Plus, X, Upload as UploadIcon } from 'lucide-react';
+import Header from '@/components/Header';
+import Sidebar from '@/components/Sidebar';
 import { createLivestream } from '@/services/livestream-service';
+import { uploadBytesResumable, getDownloadURL, ref } from 'firebase/storage';
+import { storage } from '@/lib/firebase.config';
 
 export default function CreateLiveStreamPage() {
     const { user, loading } = useAuth();
@@ -13,6 +17,7 @@ export default function CreateLiveStreamPage() {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState(false);
+    const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
     // Form state
     const [formData, setFormData] = useState({
@@ -22,6 +27,9 @@ export default function CreateLiveStreamPage() {
         isPremium: false,
     });
     const [tagInput, setTagInput] = useState('');
+    const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
+    const [thumbnailPreview, setThumbnailPreview] = useState<string | null>(null);
+    const thumbnailInputRef = useRef<HTMLInputElement>(null);
 
     // Redirect if not authenticated
     if (!loading && !user) {
@@ -60,6 +68,31 @@ export default function CreateLiveStreamPage() {
             ...prev,
             tags: prev.tags.filter((_, i) => i !== index),
         }));
+    };
+
+    const handleThumbnailSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        // Validate file type
+        if (!file.type.startsWith('image/')) {
+            setError('Please select a valid image file');
+            return;
+        }
+
+        // Validate file size (max 5MB)
+        const maxSize = 5 * 1024 * 1024;
+        if (file.size > maxSize) {
+            setError('Thumbnail must be less than 5MB');
+            return;
+        }
+
+        setThumbnailFile(file);
+        setError(null);
+
+        // Create preview URL
+        const url = URL.createObjectURL(file);
+        setThumbnailPreview(url);
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -104,6 +137,32 @@ export default function CreateLiveStreamPage() {
             // Create livestream
             if (!user) throw new Error('User not authenticated');
 
+            // Upload thumbnail if provided
+            let thumbnailUrl = '';
+            if (thumbnailFile) {
+                const timestamp = Date.now();
+                const fileName = `livestream-thumbnails/${user.uid}/${timestamp}_${thumbnailFile.name}`;
+                const storageRef = ref(storage, fileName);
+
+                const uploadTask = uploadBytesResumable(storageRef, thumbnailFile);
+                
+                thumbnailUrl = await new Promise<string>((resolve, reject) => {
+                    uploadTask.on(
+                        'state_changed',
+                        () => { }, // progress
+                        (error) => reject(error), // error
+                        async () => {
+                            try {
+                                const downloadUrl = await getDownloadURL(uploadTask.snapshot.ref);
+                                resolve(downloadUrl);
+                            } catch (error) {
+                                reject(error);
+                            }
+                        }
+                    );
+                });
+            }
+
             console.log('Creating livestream with data:', {
                 creatorId: user.uid,
                 creatorName: user.displayName || 'Creator',
@@ -111,6 +170,7 @@ export default function CreateLiveStreamPage() {
                 description: formData.description,
                 tags: formData.tags,
                 isPremium: formData.isPremium,
+                thumbnailUrl,
             });
 
             const livestreamId = await createLivestream(
@@ -120,7 +180,9 @@ export default function CreateLiveStreamPage() {
                 formData.title,
                 formData.description,
                 formData.tags,
-                formData.isPremium
+                formData.isPremium,
+                undefined,
+                thumbnailUrl
             );
 
             console.log('Livestream created successfully:', livestreamId);
@@ -138,26 +200,14 @@ export default function CreateLiveStreamPage() {
     };
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-[hsl(var(--background))] via-[hsl(var(--surface))] to-[hsl(var(--background))]">
-            {/* Header */}
-            <header className="glass-card sticky top-0 z-50 border-b border-[hsl(var(--border))]">
-                <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                        <button
-                            onClick={() => router.back()}
-                            className="p-2 hover:bg-[hsl(var(--surface))] rounded-lg transition-colors"
-                        >
-                            <ArrowLeft className="w-5 h-5" />
-                        </button>
-                        <Link href="/live" className="text-2xl font-bold gradient-text">
-                            ReelTalk
-                        </Link>
-                    </div>
-                </div>
-            </header>
+        <div className="min-h-screen bg-[hsl(var(--background))]">
+            <Header onMenuToggle={setIsSidebarOpen} />
+            <div className="flex">
+                <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
 
-            {/* Main Content */}
-            <main className="max-w-3xl mx-auto px-4 py-8">
+                {/* Main Content */}
+                <main className="flex-1 overflow-auto">
+                    <div className="max-w-3xl mx-auto px-4 py-8">
                 {/* Page Title */}
                 <div className="mb-8">
                     <h1 className="text-4xl font-bold mb-2">Create Live Stream</h1>
@@ -221,6 +271,47 @@ export default function CreateLiveStreamPage() {
                             <p className="text-xs text-[hsl(var(--foreground-subtle))] mt-1">
                                 {formData.description.length}/500 characters
                             </p>
+                        </div>
+
+                        {/* Thumbnail Upload */}
+                        <div>
+                            <label className="block text-sm font-medium mb-2 text-[hsl(var(--foreground-muted))]">
+                                Stream Thumbnail (Optional)
+                            </label>
+                            <p className="text-xs text-[hsl(var(--foreground-subtle))] mb-3">
+                                If not provided, a frame from your livestream will be used
+                            </p>
+                            <input
+                                ref={thumbnailInputRef}
+                                type="file"
+                                accept="image/*"
+                                onChange={handleThumbnailSelect}
+                                disabled={isSubmitting}
+                                className="hidden"
+                            />
+                            <div className="flex gap-4 items-center">
+                                <button
+                                    type="button"
+                                    onClick={() => thumbnailInputRef.current?.click()}
+                                    disabled={isSubmitting}
+                                    className="btn btn-secondary disabled:opacity-50"
+                                >
+                                    <UploadIcon className="w-4 h-4 mr-2" />
+                                    Choose Thumbnail
+                                </button>
+                                {thumbnailPreview && (
+                                    <div className="relative">
+                                        <img
+                                            src={thumbnailPreview}
+                                            alt="Thumbnail preview"
+                                            className="h-20 w-32 object-cover rounded-lg border border-[hsl(var(--border))]"
+                                        />
+                                        <div className="absolute -top-2 -right-2 bg-green-500 text-white text-xs px-2 py-1 rounded-full">
+                                            Custom
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
                         </div>
 
                         {/* Tags Field */}
@@ -345,7 +436,9 @@ export default function CreateLiveStreamPage() {
                         <li>✓ Test your audio and video before going live</li>
                     </ul>
                 </div>
-            </main>
+                    </div>
+                </main>
+            </div>
         </div>
     );
 }

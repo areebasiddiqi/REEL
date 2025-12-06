@@ -26,7 +26,8 @@ export const createLivestream = async (
     description: string,
     tags: string[] = [],
     isPremium: boolean = false,
-    requiredTier?: 'basic' | 'pro' | 'premium'
+    requiredTier?: 'basic' | 'pro' | 'premium',
+    thumbnailUrl?: string
 ): Promise<string> => {
     try {
         const livestreamRef = doc(collection(db, 'livestreams'));
@@ -43,6 +44,7 @@ export const createLivestream = async (
             isPremium,
             ...(creatorPhoto && { creatorPhoto }),
             ...(requiredTier && { requiredTier }),
+            ...(thumbnailUrl && { thumbnailUrl }),
         };
 
         await setDoc(livestreamRef, {

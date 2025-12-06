@@ -5,7 +5,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'next/navigation';
 import Header from '@/components/Header';
 import Sidebar from '@/components/Sidebar';
-import { User, Bell, Lock, Palette, Globe, HelpCircle, Shield, Trash2, Save } from 'lucide-react';
+import { User, Lock, Palette, Globe, HelpCircle, Shield, Trash2, Save } from 'lucide-react';
 import { updateProfile } from 'firebase/auth';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db, auth } from '@/lib/firebase.config';
@@ -22,11 +22,6 @@ export default function SettingsPage() {
     const [bio, setBio] = useState('');
     const [photoURL, setPhotoURL] = useState('');
 
-    // Notification settings
-    const [emailNotifications, setEmailNotifications] = useState(true);
-    const [pushNotifications, setPushNotifications] = useState(true);
-    const [challengeNotifications, setChallengeNotifications] = useState(true);
-    const [liveNotifications, setLiveNotifications] = useState(true);
 
     // Privacy settings
     const [profileVisibility, setProfileVisibility] = useState<'public' | 'private'>('public');
@@ -70,28 +65,6 @@ export default function SettingsPage() {
         }
     };
 
-    const handleSaveNotifications = async () => {
-        if (!user) return;
-
-        setIsSaving(true);
-        try {
-            await updateDoc(doc(db, 'users', user.uid), {
-                notifications: {
-                    email: emailNotifications,
-                    push: pushNotifications,
-                    challenges: challengeNotifications,
-                    live: liveNotifications,
-                },
-            });
-
-            alert('Notification settings updated!');
-        } catch (error: any) {
-            console.error('Error updating notifications:', error);
-            alert(error.message || 'Failed to update notifications');
-        } finally {
-            setIsSaving(false);
-        }
-    };
 
     const handleSavePrivacy = async () => {
         if (!user) return;
@@ -116,7 +89,6 @@ export default function SettingsPage() {
 
     const tabs = [
         { id: 'profile', label: 'Profile', icon: User },
-        { id: 'notifications', label: 'Notifications', icon: Bell },
         { id: 'privacy', label: 'Privacy & Security', icon: Lock },
         { id: 'appearance', label: 'Appearance', icon: Palette },
         { id: 'help', label: 'Help & Support', icon: HelpCircle },
@@ -236,95 +208,6 @@ export default function SettingsPage() {
                                         </div>
                                     )}
 
-                                    {/* Notifications Tab */}
-                                    {activeTab === 'notifications' && (
-                                        <div className="space-y-6">
-                                            <h2 className="text-2xl font-bold mb-4">Notification Preferences</h2>
-
-                                            <div className="space-y-4">
-                                                <div className="flex items-center justify-between p-4 bg-[hsl(var(--surface))] rounded-lg">
-                                                    <div>
-                                                        <p className="font-medium">Email Notifications</p>
-                                                        <p className="text-sm text-[hsl(var(--foreground-muted))]">
-                                                            Receive updates via email
-                                                        </p>
-                                                    </div>
-                                                    <label className="relative inline-flex items-center cursor-pointer">
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={emailNotifications}
-                                                            onChange={(e) => setEmailNotifications(e.target.checked)}
-                                                            className="sr-only peer"
-                                                        />
-                                                        <div className="w-11 h-6 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[hsl(var(--primary))]"></div>
-                                                    </label>
-                                                </div>
-
-                                                <div className="flex items-center justify-between p-4 bg-[hsl(var(--surface))] rounded-lg">
-                                                    <div>
-                                                        <p className="font-medium">Push Notifications</p>
-                                                        <p className="text-sm text-[hsl(var(--foreground-muted))]">
-                                                            Receive push notifications
-                                                        </p>
-                                                    </div>
-                                                    <label className="relative inline-flex items-center cursor-pointer">
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={pushNotifications}
-                                                            onChange={(e) => setPushNotifications(e.target.checked)}
-                                                            className="sr-only peer"
-                                                        />
-                                                        <div className="w-11 h-6 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[hsl(var(--primary))]"></div>
-                                                    </label>
-                                                </div>
-
-                                                <div className="flex items-center justify-between p-4 bg-[hsl(var(--surface))] rounded-lg">
-                                                    <div>
-                                                        <p className="font-medium">Challenge Updates</p>
-                                                        <p className="text-sm text-[hsl(var(--foreground-muted))]">
-                                                            Get notified about challenge submissions
-                                                        </p>
-                                                    </div>
-                                                    <label className="relative inline-flex items-center cursor-pointer">
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={challengeNotifications}
-                                                            onChange={(e) => setChallengeNotifications(e.target.checked)}
-                                                            className="sr-only peer"
-                                                        />
-                                                        <div className="w-11 h-6 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[hsl(var(--primary))]"></div>
-                                                    </label>
-                                                </div>
-
-                                                <div className="flex items-center justify-between p-4 bg-[hsl(var(--surface))] rounded-lg">
-                                                    <div>
-                                                        <p className="font-medium">Livestream Alerts</p>
-                                                        <p className="text-sm text-[hsl(var(--foreground-muted))]">
-                                                            Get notified when creators go live
-                                                        </p>
-                                                    </div>
-                                                    <label className="relative inline-flex items-center cursor-pointer">
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={liveNotifications}
-                                                            onChange={(e) => setLiveNotifications(e.target.checked)}
-                                                            className="sr-only peer"
-                                                        />
-                                                        <div className="w-11 h-6 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[hsl(var(--primary))]"></div>
-                                                    </label>
-                                                </div>
-                                            </div>
-
-                                            <button
-                                                onClick={handleSaveNotifications}
-                                                disabled={isSaving}
-                                                className="btn btn-primary disabled:opacity-50"
-                                            >
-                                                <Save className="w-4 h-4 mr-2" />
-                                                {isSaving ? 'Saving...' : 'Save Changes'}
-                                            </button>
-                                        </div>
-                                    )}
 
                                     {/* Privacy Tab */}
                                     {activeTab === 'privacy' && (

@@ -1,24 +1,36 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
-import { Heart, Share2, MessageCircle, Eye, ArrowLeft, Send, ThumbsUp } from 'lucide-react';
+import { Heart, Share2, MessageCircle, Eye, ArrowLeft, Send, ThumbsUp, Volume2, VolumeX, Maximize, Minimize, Play, Pause, SkipBack, SkipForward, UserPlus, UserCheck } from 'lucide-react';
 import { getVideo, incrementVideoViews, likeVideo } from '@/services/video-service';
 import { postVideoComment, subscribeVideoComments } from '@/services/comment-service';
+import { canAccessVideo } from '@/services/subscription-service';
+import { followCreator, unfollowCreator, isFollowing as checkIsFollowing } from '@/services/follow-service';
 import { Video, VideoComment } from '@/types';
 
 export default function VideoPage() {
     const { user, loading } = useAuth();
     const router = useRouter();
     const params = useParams();
+    const videoRef = useRef<HTMLVideoElement>(null);
     const [video, setVideo] = useState<Video | null>(null);
     const [isLiked, setIsLiked] = useState(false);
     const [commentText, setCommentText] = useState('');
     const [comments, setComments] = useState<VideoComment[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [isPlaying, setIsPlaying] = useState(false);
+    const [isMuted, setIsMuted] = useState(false);
+    const [isFullscreen, setIsFullscreen] = useState(false);
+    const [currentTime, setCurrentTime] = useState(0);
+    const [duration, setDuration] = useState(0);
+    const [volume, setVolume] = useState(1);
+    const [showControls, setShowControls] = useState(true);
+    const [isFollowing, setIsFollowing] = useState(false);
+    const [isProcessingFollow, setIsProcessingFollow] = useState(false);
 
     useEffect(() => {
         if (!loading && !user) {
@@ -43,7 +55,21 @@ export default function VideoPage() {
                     setError('Video not found');
                     return;
                 }
+
+                // Check if user can access this video
+                const hasAccess = await canAccessVideo(user?.uid, videoData);
+                if (!hasAccess) {
+                    setError('You do not have permission to view this video. Subscribe to the creator to access subscriber-only content.');
+                    return;
+                }
+
                 setVideo(videoData);
+
+                // Check following status
+                if (user && videoData.creatorId !== user.uid) {
+                    const following = await checkIsFollowing(user.uid, videoData.creatorId);
+                    setIsFollowing(following);
+                }
 
                 // Increment views
                 await incrementVideoViews(params.id as string);
@@ -67,7 +93,27 @@ export default function VideoPage() {
                 unsubscribeComments();
             }
         };
-    }, [params.id]);
+    }, [params.id, user]);
+
+    const handleFollowToggle = async () => {
+        if (!user || !video) return;
+
+        setIsProcessingFollow(true);
+        try {
+            if (isFollowing) {
+                await unfollowCreator(user.uid, video.creatorId);
+                setIsFollowing(false);
+            } else {
+                await followCreator(user.uid, video.creatorId);
+                setIsFollowing(true);
+            }
+        } catch (error: any) {
+            console.error('Error toggling follow:', error);
+            alert(error.message || 'Failed to update follow status');
+        } finally {
+            setIsProcessingFollow(false);
+        }
+    };
 
     const handleAddComment = async () => {
         if (!commentText.trim() || !user || !video) return;
@@ -120,8 +166,15 @@ export default function VideoPage() {
     };
 
     const formatDuration = (seconds: number) => {
-        const mins = Math.floor(seconds / 60);
-        const secs = seconds % 60;
+        if (!seconds || isNaN(seconds)) return '0:00';
+        
+        const hours = Math.floor(seconds / 3600);
+        const mins = Math.floor((seconds % 3600) / 60);
+        const secs = Math.floor(seconds % 60);
+        
+        if (hours > 0) {
+            return `${hours}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+        }
         return `${mins}:${secs.toString().padStart(2, '0')}`;
     };
 
@@ -142,6 +195,50 @@ export default function VideoPage() {
         if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks ago`;
         if (diffDays < 365) return `${Math.floor(diffDays / 30)} months ago`;
         return `${Math.floor(diffDays / 365)} years ago`;
+    };
+
+    const handlePlayPause = () => {
+        if (videoRef.current) {
+            if (isPlaying) {
+                videoRef.current.pause();
+            } else {
+                videoRef.current.play();
+            }
+            setIsPlaying(!isPlaying);
+        }
+    };
+
+    const handleMute = () => {
+        if (videoRef.current) {
+            videoRef.current.muted = !isMuted;
+            setIsMuted(!isMuted);
+        }
+    };
+
+    const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const vol = parseFloat(e.target.value);
+        setVolume(vol);
+        if (videoRef.current) {
+            videoRef.current.volume = vol;
+            if (vol > 0) setIsMuted(false);
+        }
+    };
+
+    const handleFullscreen = () => {
+        if (videoRef.current?.parentElement) {
+            if (!isFullscreen) {
+                videoRef.current.parentElement.requestFullscreen?.();
+            } else {
+                document.exitFullscreen?.();
+            }
+            setIsFullscreen(!isFullscreen);
+        }
+    };
+
+    const handleSkip = (seconds: number) => {
+        if (videoRef.current) {
+            videoRef.current.currentTime = Math.max(0, Math.min(duration, videoRef.current.currentTime + seconds));
+        }
     };
 
     if (loading) {
@@ -190,14 +287,129 @@ export default function VideoPage() {
                             </div>
                         ) : video ? (
                             <>
-                                {/* Video Player */}
-                                <div className="relative bg-black rounded-xl overflow-hidden mb-6">
+                                {/* Enhanced Video Player */}
+                                <div 
+                                    className={`relative bg-black rounded-xl overflow-hidden mb-6 group ${isFullscreen ? 'fixed inset-0 z-50 rounded-none' : ''}`}
+                                    onMouseEnter={() => setShowControls(true)}
+                                    onMouseLeave={() => setShowControls(false)}
+                                >
                                     <video
+                                        ref={videoRef}
                                         src={video.videoUrl}
-                                        controls
                                         className="w-full aspect-video object-contain bg-black"
                                         poster={video.thumbnailUrl}
+                                        onPlay={() => setIsPlaying(true)}
+                                        onPause={() => setIsPlaying(false)}
+                                        onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
+                                        onLoadedMetadata={(e) => setDuration(e.currentTarget.duration)}
+                                        onVolumeChange={(e) => setVolume(e.currentTarget.volume)}
                                     />
+
+                                    {/* Play Button Overlay */}
+                                    {!isPlaying && (
+                                        <button
+                                            onClick={handlePlayPause}
+                                            className="absolute inset-0 flex items-center justify-center hover:bg-black/30 transition-colors"
+                                        >
+                                            <Play className="w-20 h-20 text-white opacity-80 hover:opacity-100" fill="white" />
+                                        </button>
+                                    )}
+
+                                    {/* Custom Controls */}
+                                    <div className={`absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4 transition-opacity ${showControls ? 'opacity-100' : 'opacity-0'}`}>
+                                        {/* Progress Bar */}
+                                        <div className="mb-3">
+                                            <input
+                                                type="range"
+                                                min="0"
+                                                max={duration || 0}
+                                                value={currentTime}
+                                                onChange={(e) => {
+                                                    const time = parseFloat(e.target.value);
+                                                    if (videoRef.current) {
+                                                        videoRef.current.currentTime = time;
+                                                        setCurrentTime(time);
+                                                    }
+                                                }}
+                                                className="w-full h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer accent-[hsl(var(--primary))]"
+                                            />
+                                        </div>
+
+                                        {/* Control Buttons */}
+                                        <div className="flex items-center justify-between text-white">
+                                            <div className="flex items-center gap-2">
+                                                {/* Play/Pause */}
+                                                <button
+                                                    onClick={handlePlayPause}
+                                                    className="p-2 hover:bg-white/20 rounded-lg transition-colors"
+                                                >
+                                                    {isPlaying ? (
+                                                        <Pause className="w-5 h-5" fill="white" />
+                                                    ) : (
+                                                        <Play className="w-5 h-5" fill="white" />
+                                                    )}
+                                                </button>
+
+                                                {/* Skip Back */}
+                                                <button
+                                                    onClick={() => handleSkip(-10)}
+                                                    className="p-2 hover:bg-white/20 rounded-lg transition-colors"
+                                                    title="Skip back 10s"
+                                                >
+                                                    <SkipBack className="w-5 h-5" />
+                                                </button>
+
+                                                {/* Skip Forward */}
+                                                <button
+                                                    onClick={() => handleSkip(10)}
+                                                    className="p-2 hover:bg-white/20 rounded-lg transition-colors"
+                                                    title="Skip forward 10s"
+                                                >
+                                                    <SkipForward className="w-5 h-5" />
+                                                </button>
+
+                                                {/* Volume Control */}
+                                                <div className="flex items-center gap-2 ml-2">
+                                                    <button
+                                                        onClick={handleMute}
+                                                        className="p-2 hover:bg-white/20 rounded-lg transition-colors"
+                                                    >
+                                                        {isMuted || volume === 0 ? (
+                                                            <VolumeX className="w-5 h-5" />
+                                                        ) : (
+                                                            <Volume2 className="w-5 h-5" />
+                                                        )}
+                                                    </button>
+                                                    <input
+                                                        type="range"
+                                                        min="0"
+                                                        max="1"
+                                                        step="0.1"
+                                                        value={isMuted ? 0 : volume}
+                                                        onChange={handleVolumeChange}
+                                                        className="w-20 h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer accent-[hsl(var(--primary))]"
+                                                    />
+                                                </div>
+
+                                                {/* Time Display */}
+                                                <span className="text-sm font-mono ml-auto px-2 py-1 bg-black/40 rounded">
+                                                    {formatDuration(currentTime)} / {formatDuration(duration)}
+                                                </span>
+                                            </div>
+
+                                            {/* Fullscreen Button */}
+                                            <button
+                                                onClick={handleFullscreen}
+                                                className="p-2 hover:bg-white/20 rounded-lg transition-colors"
+                                            >
+                                                {isFullscreen ? (
+                                                    <Minimize className="w-5 h-5" />
+                                                ) : (
+                                                    <Maximize className="w-5 h-5" />
+                                                )}
+                                            </button>
+                                        </div>
+                                    </div>
                                 </div>
 
                                 {/* Video Info */}
@@ -249,7 +461,28 @@ export default function VideoPage() {
                                                 <p className="text-sm text-[hsl(var(--foreground-muted))]">Creator</p>
                                             </div>
                                         </div>
-                                        <button className="btn btn-primary">Follow</button>
+                                        {user?.uid !== video.creatorId && (
+                                            <button
+                                                onClick={handleFollowToggle}
+                                                disabled={isProcessingFollow}
+                                                className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all disabled:opacity-50 ${isFollowing
+                                                    ? 'bg-[hsl(var(--surface))] text-[hsl(var(--foreground-muted))] hover:bg-[hsl(var(--surface-elevated))]'
+                                                    : 'bg-[hsl(var(--primary))] text-white hover:opacity-90'
+                                                    }`}
+                                            >
+                                                {isFollowing ? (
+                                                    <>
+                                                        <UserCheck className="w-4 h-4" />
+                                                        Following
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <UserPlus className="w-4 h-4" />
+                                                        Follow
+                                                    </>
+                                                )}
+                                            </button>
+                                        )}
                                     </div>
 
                                     {/* Description */}

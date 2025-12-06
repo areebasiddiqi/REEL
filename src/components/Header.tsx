@@ -5,7 +5,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
-import { Search, Menu, X, Bell, Upload, LogOut, Settings, User } from 'lucide-react';
+import { Search, Menu, X, Upload, LogOut, User } from 'lucide-react';
 
 interface HeaderProps {
     onMenuToggle?: (isOpen: boolean) => void;
@@ -117,12 +117,6 @@ export default function Header({ onMenuToggle }: HeaderProps) {
                         </Link>
                     )}
 
-                    {/* Notifications */}
-                    <button className="p-2 hover:bg-[hsl(var(--surface))] rounded-lg transition-colors relative" title="Notifications">
-                        <Bell className="w-5 h-5" />
-                        <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
-                    </button>
-
                     {/* User Menu */}
                     {user ? (
                         <div className="relative" ref={menuRef}>
@@ -162,14 +156,6 @@ export default function Header({ onMenuToggle }: HeaderProps) {
                                         >
                                             <User className="w-4 h-4" />
                                             Your Profile
-                                        </Link>
-                                        <Link
-                                            href="/settings"
-                                            className="flex items-center gap-3 px-4 py-2 hover:bg-[hsl(var(--surface))] transition-colors text-sm"
-                                            onClick={() => setIsMenuOpen(false)}
-                                        >
-                                            <Settings className="w-4 h-4" />
-                                            Settings
                                         </Link>
                                     </nav>
                                     <div className="border-t border-[hsl(var(--border))] py-2">

@@ -8,6 +8,22 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 const PREMIUM_PLAN_PRICE = 10000; // $100.00 in cents
 const PLATFORM_FEE_PERCENT = 20; // 20% platform fee
 
+// Helper to get base URL with fallback
+const getBaseUrl = (): string => {
+    // Check for environment variable first
+    if (process.env.NEXT_PUBLIC_APP_URL) {
+        return process.env.NEXT_PUBLIC_APP_URL;
+    }
+    
+    // Fallback to Vercel URL if available
+    if (process.env.VERCEL_URL) {
+        return `https://${process.env.VERCEL_URL}`;
+    }
+    
+    // Development fallback
+    return 'http://localhost:3000';
+};
+
 // Create Checkout Session for Premium Plan
 export const createPremiumCheckout = async (
     userId: string,
@@ -35,8 +51,8 @@ export const createPremiumCheckout = async (
                     quantity: 1,
                 },
             ],
-            success_url: `${process.env.NEXT_PUBLIC_APP_URL}/premium/success?session_id={CHECKOUT_SESSION_ID}`,
-            cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/premium`,
+            success_url: `${getBaseUrl()}/premium/success?session_id={CHECKOUT_SESSION_ID}`,
+            cancel_url: `${getBaseUrl()}/premium`,
             metadata: {
                 userId,
                 type: 'premium_plan',
@@ -83,8 +99,8 @@ export const createSubscriptionCheckout = async (
                     quantity: 1,
                 },
             ],
-            success_url: `${process.env.NEXT_PUBLIC_APP_URL}/subscriptions/success?session_id={CHECKOUT_SESSION_ID}`,
-            cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/profile/${creatorId}`,
+            success_url: `${getBaseUrl()}/subscriptions/success?session_id={CHECKOUT_SESSION_ID}`,
+            cancel_url: `${getBaseUrl()}/profile/${creatorId}`,
             metadata: {
                 userId,
                 creatorId,

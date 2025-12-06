@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { headers } from 'next/headers';
 import { verifyWebhookSignature } from '@/services/stripe-service';
 import { subscribeUserToCreator, unsubscribeUserFromCreator } from '@/services/subscription-service';
-import { doc, updateDoc, Timestamp } from 'firebase/firestore';
-import { db } from '@/lib/firebase.config';
+import { Timestamp } from 'firebase-admin/firestore';
+import { adminDb } from '@/lib/firebase-admin';
 import Stripe from 'stripe';
 
 export async function POST(request: NextRequest) {
@@ -12,15 +12,27 @@ export async function POST(request: NextRequest) {
         const headersList = await headers();
         const signature = headersList.get('stripe-signature');
 
-        if (!signature) {
-            return NextResponse.json(
-                { error: 'Missing signature' },
-                { status: 400 }
-            );
-        }
+        // In development, you can skip signature verification for testing
+        const isDevelopment = process.env.NODE_ENV === 'development';
 
-        // Verify webhook signature
-        const event = verifyWebhookSignature(body, signature);
+        let event: Stripe.Event;
+
+        if (isDevelopment && !process.env.STRIPE_WEBHOOK_SECRET) {
+            // Development mode without webhook secret - parse event directly
+            console.warn('⚠️ Webhook signature verification skipped (development mode)');
+            event = JSON.parse(body);
+        } else {
+            // Production mode or development with webhook secret - verify signature
+            if (!signature) {
+                return NextResponse.json(
+                    { error: 'Missing signature' },
+                    { status: 400 }
+                );
+            }
+
+            // Verify webhook signature
+            event = verifyWebhookSignature(body, signature);
+        }
 
         // Handle different event types
         switch (event.type) {
@@ -74,11 +86,11 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
 
     if (type === 'premium_plan') {
         // Activate premium plan
-        const userRef = doc(db, 'users', userId);
+        const userRef = adminDb.collection('users').doc(userId);
         const expiresAt = new Date();
         expiresAt.setMonth(expiresAt.getMonth() + 1); // 1 month from now
 
-        await updateDoc(userRef, {
+        await userRef.update({
             premiumPlan: 'premium',
             premiumExpiresAt: Timestamp.fromDate(expiresAt),
             stripeCustomerId: session.customer as string,
@@ -116,8 +128,8 @@ async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
 
     if (type === 'premium_plan') {
         // Deactivate premium plan
-        const userRef = doc(db, 'users', userId);
-        await updateDoc(userRef, {
+        const userRef = adminDb.collection('users').doc(userId);
+        await userRef.update({
             premiumPlan: 'free',
             premiumExpiresAt: null,
         });
@@ -146,8 +158,13 @@ async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
     }
 
     // Update subscription status in Firestore
-    const subscriptionRef = doc(db, 'users', userId, 'subscriptions', creatorId);
-    await updateDoc(subscriptionRef, {
+    const subscriptionRef = adminDb
+        .collection('users')
+        .doc(userId)
+        .collection('subscriptions')
+        .doc(creatorId);
+
+    await subscriptionRef.update({
         status: subscription.status,
         currentPeriodEnd: Timestamp.fromDate(new Date(subscription.current_period_end * 1000)),
     });

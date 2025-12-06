@@ -11,7 +11,9 @@ import { getUserChallenges } from '@/services/challenge-service';
 import { followCreator, unfollowCreator, isFollowing } from '@/services/follow-service';
 import { areFriends, sendFriendRequest, hasPendingRequest, removeFriend } from '@/services/friend-service';
 import { getOrCreateConversation } from '@/services/message-service';
-import { User, Video as VideoType, Challenge } from '@/types';
+import { getCreatorSubscription, isSubscribedTo } from '@/services/subscription-service';
+import { User, Video as VideoType, Challenge, CreatorSubscription } from '@/types';
+import PremiumBadge from '@/components/PremiumBadge';
 
 export default function ProfilePage() {
     const { user: currentUser, loading } = useAuth();
@@ -28,6 +30,9 @@ export default function ProfilePage() {
     const [activeTab, setActiveTab] = useState<'videos' | 'challenges'>('videos');
     const [processingFollow, setProcessingFollow] = useState(false);
     const [processingFriend, setProcessingFriend] = useState(false);
+    const [creatorSubscription, setCreatorSubscription] = useState<CreatorSubscription | null>(null);
+    const [isSubscribed, setIsSubscribed] = useState(false);
+    const [processingSubscription, setProcessingSubscription] = useState(false);
 
     useEffect(() => {
         if (!loading && !currentUser) {
@@ -73,7 +78,15 @@ export default function ProfilePage() {
                     // Check if request pending
                     const pending = await hasPendingRequest(currentUser.uid, userId);
                     setRequestPending(pending);
+
+                    // Check subscription status
+                    const subscribed = await isSubscribedTo(currentUser.uid, userId);
+                    setIsSubscribed(subscribed);
                 }
+
+                // Fetch creator subscription if they have one
+                const subscription = await getCreatorSubscription(userId);
+                setCreatorSubscription(subscription);
             } catch (err: any) {
                 setError(err.message || 'Failed to load profile');
                 console.error('Error fetching profile:', err);
@@ -144,6 +157,45 @@ export default function ProfilePage() {
         } catch (error: any) {
             console.error('Error creating conversation:', error);
             alert(error.message || 'Failed to start conversation');
+        }
+    };
+
+    const handleSubscribe = async () => {
+        if (!currentUser || !profileUser || !creatorSubscription) return;
+
+        // Check if user has premium
+        if (currentUser.premiumPlan !== 'premium') {
+            router.push('/premium');
+            return;
+        }
+
+        try {
+            setProcessingSubscription(true);
+
+            const response = await fetch('/api/stripe/checkout', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    type: 'subscription',
+                    userId: currentUser.uid,
+                    userEmail: currentUser.email,
+                    creatorId: profileUser.uid,
+                    creatorName: profileUser.displayName,
+                    price: creatorSubscription.price,
+                }),
+            });
+
+            const data = await response.json();
+
+            if (data.url) {
+                window.location.href = data.url;
+            } else {
+                throw new Error('No checkout URL returned');
+            }
+        } catch (error: any) {
+            console.error('Error creating subscription checkout:', error);
+            alert(error.message || 'Failed to start subscription');
+            setProcessingSubscription(false);
         }
     };
 
@@ -296,13 +348,51 @@ export default function ProfilePage() {
                                                         <UserPlus className="w-4 h-4 mr-2" />
                                                         Add Friend
                                                     </button>
-                                                )}
+                                                ))}
                                             </div>
+
+                                            {/* Subscription Button */}
+                                            {creatorSubscription && creatorSubscription.active && currentUser.uid !== profileUser.uid && (
+                                                <div className="mt-2">
+                                                    {isSubscribed ? (
+                                                        <div className="p-3 bg-green-500/10 border border-green-500/30 rounded-lg text-center">
+                                                            <p className="text-sm font-medium text-green-500">
+                                                                ✓ Subscribed
+                                                            </p>
+                                                        </div>
+                                                    ) : (
+                                                        <button
+                                                            onClick={handleSubscribe}
+                                                            disabled={processingSubscription}
+                                                            className="w-full btn btn-primary disabled:opacity-50"
+                                                        >
+                                                            {processingSubscription ? (
+                                                                'Processing...'
+                                                            ) : (
+                                                                <>
+                                                                    <PremiumBadge size="sm" />
+                                                                    <span className="ml-2">
+                                                                        Subscribe for ${(creatorSubscription.price / 100).toFixed(2)}/month
+                                                                    </span>
+                                                                </>
+                                                            )}
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            )}
                                         </>
                                     )}
                                 </div>
                             </div>
                         </div>
+
+                        {/* Premium Badge */}
+                        {profileUser.premiumPlan === 'premium' && (
+                            <div className="mb-4 flex items-center gap-2 text-yellow-500">
+                                <PremiumBadge size="md" showLabel />
+                                <span className="text-sm">Member</span>
+                            </div>
+                        )}
 
                         {/* Tabs */}
                         <div className="mb-6">

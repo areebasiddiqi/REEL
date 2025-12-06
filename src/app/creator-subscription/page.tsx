@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'next/navigation';
 import Header from '@/components/Header';
@@ -13,13 +13,13 @@ import PremiumBadge from '@/components/PremiumBadge';
 export default function CreatorSubscriptionPage() {
     const { user, loading, refreshUser } = useAuth();
     const router = useRouter();
+    const premiumCheckRef = useRef(false);
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const [subscription, setSubscription] = useState<CreatorSubscription | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState(false);
-    const [premiumChecked, setPremiumChecked] = useState(false);
 
     const [formData, setFormData] = useState({
         price: '',
@@ -34,8 +34,8 @@ export default function CreatorSubscriptionPage() {
             return;
         }
 
-        if (!loading && user && !premiumChecked) {
-            setPremiumChecked(true);
+        if (!loading && user && !premiumCheckRef.current) {
+            premiumCheckRef.current = true;
             
             if (user.premiumPlan !== 'premium') {
                 console.log('User premium plan:', user.premiumPlan);
@@ -48,7 +48,7 @@ export default function CreatorSubscriptionPage() {
                 });
             }
         }
-    }, [user, loading, premiumChecked, refreshUser, router]);
+    }, [user, loading, refreshUser, router]);
 
     useEffect(() => {
         const fetchSubscription = async () => {

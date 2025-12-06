@@ -11,7 +11,7 @@ import { CreatorSubscription } from '@/types';
 import PremiumBadge from '@/components/PremiumBadge';
 
 export default function CreatorSubscriptionPage() {
-    const { user, loading } = useAuth();
+    const { user, loading, refreshUser } = useAuth();
     const router = useRouter();
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const [subscription, setSubscription] = useState<CreatorSubscription | null>(null);
@@ -32,9 +32,15 @@ export default function CreatorSubscriptionPage() {
             router.push('/login');
         } else if (user && user.premiumPlan !== 'premium') {
             console.log('User premium plan:', user.premiumPlan);
-            router.push('/premium');
+            // Refresh user data to check for recent premium purchase
+            refreshUser().then(() => {
+                // After refresh, check again
+                if (user.premiumPlan !== 'premium') {
+                    router.push('/premium');
+                }
+            });
         }
-    }, [user, loading, router]);
+    }, [user, loading, router, refreshUser]);
 
     useEffect(() => {
         const fetchSubscription = async () => {

@@ -21,6 +21,7 @@ interface AuthContextType {
     signInGoogle: () => Promise<void>;
     signInApple: () => Promise<void>;
     signOut: () => Promise<void>;
+    refreshUser: () => Promise<void>;
 }
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -106,6 +107,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
     };
 
+    const refreshUser = async () => {
+        if (!user) return;
+        try {
+            const updatedUserData = await getUserData(user.uid);
+            if (updatedUserData) {
+                setUser(updatedUserData);
+            }
+        } catch (error) {
+            console.error('Error refreshing user data:', error);
+        }
+    };
+
     const value = {
         user,
         loading,
@@ -114,6 +127,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         signInGoogle,
         signInApple,
         signOut,
+        refreshUser,
     };
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

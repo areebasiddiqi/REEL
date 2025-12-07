@@ -11,6 +11,7 @@ export default function PremiumPage() {
     const { user, loading } = useAuth();
     const router = useRouter();
     const [isProcessing, setIsProcessing] = useState(false);
+    const [processingPlan, setProcessingPlan] = useState<string | null>(null);
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
     if (!loading && !user) {
@@ -24,11 +25,12 @@ export default function PremiumPage() {
         return null;
     }
 
-    const handleUpgrade = async () => {
+    const handleUpgrade = async (planKey: string) => {
         if (!user) return;
 
         try {
             setIsProcessing(true);
+            setProcessingPlan(planKey);
 
             const response = await fetch('/api/stripe/checkout', {
                 method: 'POST',
@@ -37,6 +39,7 @@ export default function PremiumPage() {
                     type: 'premium',
                     userId: user.uid,
                     userEmail: user.email,
+                    planKey,
                 }),
             });
 
@@ -51,6 +54,7 @@ export default function PremiumPage() {
             console.error('Error creating checkout:', error);
             alert(error.message || 'Failed to start checkout');
             setIsProcessing(false);
+            setProcessingPlan(null);
         }
     };
 
@@ -103,32 +107,96 @@ export default function PremiumPage() {
                             </p>
                         </div>
 
-                        {/* Pricing Card */}
-                        <div className="glass-card p-8 mb-12 border-2 border-[hsl(var(--primary))]">
-                            <div className="text-center mb-8">
-                                <div className="text-6xl font-bold mb-2">$100</div>
-                                <div className="text-[hsl(var(--foreground-muted))]">per month</div>
+                        {/* Pricing Cards */}
+                        <div className="grid md:grid-cols-3 gap-6 mb-12">
+                            {/* Monthly Plan */}
+                            <div className="glass-card p-8 border-2 border-[hsl(var(--primary))]">
+                                <div className="text-center mb-8">
+                                    <div className="text-4xl font-bold mb-2">$10</div>
+                                    <div className="text-[hsl(var(--foreground-muted))]">per month</div>
+                                </div>
+
+                                <button
+                                    onClick={() => handleUpgrade('monthly')}
+                                    disabled={isProcessing || user?.premiumPlan === 'premium'}
+                                    className="w-full btn btn-primary text-lg py-3 disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    {processingPlan === 'monthly' && isProcessing ? (
+                                        'Processing...'
+                                    ) : user?.premiumPlan === 'premium' ? (
+                                        <>
+                                            <Check className="w-5 h-5 mr-2" />
+                                            Already Premium
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Crown className="w-5 h-5 mr-2" />
+                                            Choose Plan
+                                        </>
+                                    )}
+                                </button>
                             </div>
 
-                            <button
-                                onClick={handleUpgrade}
-                                disabled={isProcessing || user?.premiumPlan === 'premium'}
-                                className="w-full btn btn-primary text-lg py-4 disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                                {isProcessing ? (
-                                    'Processing...'
-                                ) : user?.premiumPlan === 'premium' ? (
-                                    <>
-                                        <Check className="w-5 h-5 mr-2" />
-                                        Already Premium
-                                    </>
-                                ) : (
-                                    <>
-                                        <Crown className="w-5 h-5 mr-2" />
-                                        Upgrade Now
-                                    </>
-                                )}
-                            </button>
+                            {/* Yearly $100 Plan */}
+                            <div className="glass-card p-8 border-2 border-[hsl(var(--primary))] relative">
+                                <div className="absolute top-4 right-4 bg-[hsl(var(--primary))] text-white px-3 py-1 rounded-full text-sm font-semibold">
+                                    Popular
+                                </div>
+                                <div className="text-center mb-8">
+                                    <div className="text-4xl font-bold mb-2">$100</div>
+                                    <div className="text-[hsl(var(--foreground-muted))]">per year</div>
+                                    <div className="text-sm text-green-500 mt-2">Save $20/year</div>
+                                </div>
+
+                                <button
+                                    onClick={() => handleUpgrade('yearly_100')}
+                                    disabled={isProcessing || user?.premiumPlan === 'premium'}
+                                    className="w-full btn btn-primary text-lg py-3 disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    {processingPlan === 'yearly_100' && isProcessing ? (
+                                        'Processing...'
+                                    ) : user?.premiumPlan === 'premium' ? (
+                                        <>
+                                            <Check className="w-5 h-5 mr-2" />
+                                            Already Premium
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Crown className="w-5 h-5 mr-2" />
+                                            Choose Plan
+                                        </>
+                                    )}
+                                </button>
+                            </div>
+
+                            {/* Lifetime Plan */}
+                            <div className="glass-card p-8 border-2 border-[hsl(var(--primary))]">
+                                <div className="text-center mb-8">
+                                    <div className="text-4xl font-bold mb-2">$200</div>
+                                    <div className="text-[hsl(var(--foreground-muted))]">lifetime</div>
+                                    <div className="text-sm text-green-500 mt-2">One-time payment</div>
+                                </div>
+
+                                <button
+                                    onClick={() => handleUpgrade('lifetime')}
+                                    disabled={isProcessing || user?.premiumPlan === 'premium'}
+                                    className="w-full btn btn-primary text-lg py-3 disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    {processingPlan === 'lifetime' && isProcessing ? (
+                                        'Processing...'
+                                    ) : user?.premiumPlan === 'premium' ? (
+                                        <>
+                                            <Check className="w-5 h-5 mr-2" />
+                                            Already Premium
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Crown className="w-5 h-5 mr-2" />
+                                            Choose Plan
+                                        </>
+                                    )}
+                                </button>
+                            </div>
                         </div>
 
                         {/* Features */}

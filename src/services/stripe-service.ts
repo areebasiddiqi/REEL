@@ -15,7 +15,28 @@ const getStripe = (): Stripe => {
     return stripe;
 };
 
-const PREMIUM_PLAN_PRICE = 10000; // $100.00 in cents
+// Premium plan pricing options
+const PREMIUM_PLANS = {
+    monthly: {
+        price: 1000, // $10.00 in cents
+        interval: 'month' as const,
+        name: 'Monthly',
+        isRecurring: true,
+    },
+    yearly_100: {
+        price: 10000, // $100.00 in cents
+        interval: 'year' as const,
+        name: 'Yearly ($100)',
+        isRecurring: true,
+    },
+    lifetime: {
+        price: 20000, // $200.00 in cents
+        interval: null,
+        name: 'Lifetime ($200)',
+        isRecurring: false,
+    },
+};
+
 const PLATFORM_FEE_PERCENT = 20; // 20% platform fee
 
 // Helper to get base URL with fallback
@@ -37,35 +58,49 @@ const getBaseUrl = (): string => {
 // Create Checkout Session for Premium Plan
 export const createPremiumCheckout = async (
     userId: string,
-    userEmail: string
+    userEmail: string,
+    planKey: keyof typeof PREMIUM_PLANS = 'monthly'
 ): Promise<string> => {
     try {
+        const plan = PREMIUM_PLANS[planKey];
+        if (!plan) {
+            throw new Error('Invalid premium plan');
+        }
+
+        const isLifetime = !plan.isRecurring;
+        const mode = isLifetime ? 'payment' : 'subscription';
+
+        const lineItem: any = {
+            price_data: {
+                currency: 'usd',
+                product_data: {
+                    name: 'ReelTalk Premium',
+                    description: 'Access premium videos, livestreams, and challenges',
+                },
+                unit_amount: plan.price,
+            },
+            quantity: 1,
+        };
+
+        // Only add recurring for subscription plans
+        if (!isLifetime) {
+            lineItem.price_data.recurring = {
+                interval: plan.interval,
+            };
+        }
+
         const session = await getStripe().checkout.sessions.create({
             customer_email: userEmail,
             client_reference_id: userId,
             payment_method_types: ['card'],
-            mode: 'subscription',
-            line_items: [
-                {
-                    price_data: {
-                        currency: 'usd',
-                        product_data: {
-                            name: 'ReelTalk Premium',
-                            description: 'Access premium videos, livestreams, and challenges',
-                        },
-                        unit_amount: PREMIUM_PLAN_PRICE,
-                        recurring: {
-                            interval: 'month',
-                        },
-                    },
-                    quantity: 1,
-                },
-            ],
+            mode,
+            line_items: [lineItem],
             success_url: `${getBaseUrl()}/premium/success?session_id={CHECKOUT_SESSION_ID}`,
             cancel_url: `${getBaseUrl()}/premium`,
             metadata: {
                 userId,
                 type: 'premium_plan',
+                planKey,
             },
         });
 

@@ -68,9 +68,13 @@ export default function Header({ onMenuToggle }: HeaderProps) {
                         )}
                     </button>
                     <Link href="/live" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
-                        <div className="w-10 h-10 bg-gradient-to-br from-[hsl(var(--primary))] to-[hsl(var(--secondary))] rounded-lg flex items-center justify-center">
-                            <span className="text-white font-bold text-lg">R</span>
-                        </div>
+                        <Image
+                            src="/logo.png"
+                            alt="ReelTalk"
+                            width={40}
+                            height={40}
+                            className="w-10 h-10 rounded-lg"
+                        />
                         <span className="font-bold text-lg hidden sm:inline">ReelTalk</span>
                     </Link>
                 </div>

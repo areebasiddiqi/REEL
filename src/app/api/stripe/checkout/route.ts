@@ -4,7 +4,7 @@ import { createPremiumCheckout, createSubscriptionCheckout } from '@/services/st
 export async function POST(request: NextRequest) {
     try {
         const body = await request.json();
-        const { type, userId, userEmail, creatorId, creatorName, price } = body;
+        const { type, userId, userEmail, creatorId, creatorName, price, planKey } = body;
 
         if (!userId || !userEmail) {
             return NextResponse.json(
@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
 
         if (type === 'premium') {
             // Create premium plan checkout
-            checkoutUrl = await createPremiumCheckout(userId, userEmail);
+            checkoutUrl = await createPremiumCheckout(userId, userEmail, planKey || 'monthly');
         } else if (type === 'subscription') {
             // Create creator subscription checkout
             if (!creatorId || !creatorName || !price) {

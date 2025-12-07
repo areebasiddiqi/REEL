@@ -21,6 +21,7 @@ import {
 import { storage, db } from '@/lib/firebase.config';
 import { Video } from '@/types';
 import { isSubscribedTo } from './subscription-service';
+import { createNotification } from './notification-service';
 
 // Upload video to Firebase Storage
 export const uploadVideo = (
@@ -203,11 +204,26 @@ export const incrementVideoViews = async (videoId: string): Promise<void> => {
 };
 
 // Like video
-export const likeVideo = async (videoId: string): Promise<void> => {
+export const likeVideo = async (videoId: string, userId?: string, userName?: string): Promise<void> => {
     try {
+        const videoDoc = await getDoc(doc(db, 'videos', videoId));
+        
         await updateDoc(doc(db, 'videos', videoId), {
             likes: increment(1),
         });
+
+        // Create notification for the video creator
+        if (videoDoc.exists() && userId) {
+            const video = videoDoc.data() as Video;
+            const likerName = userName || 'A user';
+            await createNotification(
+                video.creatorId,
+                'like',
+                'Video Liked',
+                `${likerName} liked your video "${video.title}"`,
+                `/videos/${videoId}`
+            );
+        }
     } catch (error: any) {
         throw new Error(error.message || 'Failed to like video');
     }

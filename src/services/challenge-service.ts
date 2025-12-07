@@ -21,6 +21,7 @@ import {
 import { storage, db } from '@/lib/firebase.config';
 import { Challenge, ChallengeSubmission } from '@/types';
 import { awardPoints } from './points-service';
+import { createNotification } from './notification-service';
 
 // Upload challenge thumbnail
 export const uploadChallengeThumbnail = (
@@ -182,6 +183,18 @@ export const submitChallengeEntry = async (
             participants: increment(1),
         });
 
+        // Get challenge to notify creator
+        const challenge = await getChallenge(challengeId);
+        if (challenge) {
+            await createNotification(
+                challenge.creatorId,
+                'challenge',
+                'New Challenge Submission',
+                `${userName} submitted an entry to your challenge "${challenge.title}"`,
+                `/challenges/${challengeId}`
+            );
+        }
+
         return submissionRef.id;
     } catch (error: any) {
         throw new Error(error.message || 'Failed to submit challenge entry');
@@ -265,6 +278,15 @@ export const approveSubmission = async (
         await updateDoc(doc(db, 'challenges', challengeId), {
             completions: increment(1),
         });
+
+        // Notify user about approval
+        await createNotification(
+            submission.userId,
+            'challenge',
+            'Challenge Approved',
+            `Your submission for "${challenge.title}" has been approved! You earned ${challenge.pointsReward} points.`,
+            `/challenges/${challengeId}`
+        );
     } catch (error: any) {
         throw new Error(error.message || 'Failed to approve submission');
     }

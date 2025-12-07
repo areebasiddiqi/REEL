@@ -14,6 +14,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase.config';
 import { LivestreamComment, VideoComment } from '@/types';
+import { createNotification } from './notification-service';
 
 // Post a comment to a livestream
 export const postLivestreamComment = async (
@@ -21,7 +22,8 @@ export const postLivestreamComment = async (
     userId: string,
     userName: string,
     userPhoto: string | undefined,
-    content: string
+    content: string,
+    creatorId?: string
 ): Promise<void> => {
     try {
         const commentRef = doc(collection(db, 'livestreams', livestreamId, 'comments'));
@@ -85,7 +87,8 @@ export const postVideoComment = async (
     userId: string,
     userName: string,
     userPhoto: string | undefined,
-    content: string
+    content: string,
+    creatorId?: string
 ): Promise<void> => {
     try {
         const commentRef = doc(collection(db, 'videos', videoId, 'comments'));
@@ -100,6 +103,17 @@ export const postVideoComment = async (
             createdAt: Timestamp.fromDate(new Date()),
             likes: 0,
         });
+
+        // Create notification for the video creator
+        if (creatorId && creatorId !== userId) {
+            await createNotification(
+                creatorId,
+                'comment',
+                'New Comment',
+                `${userName} commented on your video`,
+                `/videos/${videoId}`
+            );
+        }
     } catch (error: any) {
         throw new Error(error.message || 'Failed to post comment');
     }

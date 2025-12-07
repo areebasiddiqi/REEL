@@ -124,7 +124,8 @@ export default function VideoPage() {
                 user.uid,
                 user.displayName || 'User',
                 user.photoURL || 'https://api.dicebear.com/7.x/avataaars/svg?seed=default',
-                commentText
+                commentText,
+                video.creatorId
             );
 
             setCommentText('');
@@ -135,10 +136,10 @@ export default function VideoPage() {
     };
 
     const handleLike = async () => {
-        if (!video) return;
+        if (!video || !user) return;
 
         try {
-            await likeVideo(video.id);
+            await likeVideo(video.id, user.uid, user.displayName || 'User');
             setIsLiked(true);
             setVideo(prev => prev ? { ...prev, likes: prev.likes + 1 } : null);
         } catch (err: any) {

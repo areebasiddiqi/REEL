@@ -6,6 +6,7 @@ import Image from 'next/image';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 import { Search, Menu, X, Upload, LogOut, User } from 'lucide-react';
+import NotificationBell from './NotificationBell';
 
 interface HeaderProps {
     onMenuToggle?: (isOpen: boolean) => void;
@@ -108,6 +109,9 @@ export default function Header({ onMenuToggle }: HeaderProps) {
                     >
                         <Search className="w-5 h-5" />
                     </button>
+
+                    {/* Notifications */}
+                    {user && <NotificationBell />}
 
                     {/* Create Button */}
                     {user && (

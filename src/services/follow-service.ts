@@ -13,9 +13,10 @@ import {
     increment,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase.config';
+import { createNotification } from './notification-service';
 
 // Follow a creator
-export const followCreator = async (userId: string, creatorId: string): Promise<void> => {
+export const followCreator = async (userId: string, creatorId: string, userName?: string): Promise<void> => {
     try {
         // Add to user's following list
         await setDoc(doc(db, 'users', userId, 'following', creatorId), {
@@ -37,6 +38,16 @@ export const followCreator = async (userId: string, creatorId: string): Promise<
         await updateDoc(doc(db, 'users', creatorId), {
             followers: increment(1),
         });
+
+        // Create notification for the creator
+        const followerName = userName || 'A user';
+        await createNotification(
+            creatorId,
+            'follow',
+            'New Follower',
+            `${followerName} started following you`,
+            `/profile/${userId}`
+        );
     } catch (error: any) {
         throw new Error(error.message || 'Failed to follow creator');
     }

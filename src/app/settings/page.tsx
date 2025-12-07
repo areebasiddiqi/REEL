@@ -5,7 +5,8 @@ import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'next/navigation';
 import Header from '@/components/Header';
 import Sidebar from '@/components/Sidebar';
-import { User, Lock, Palette, Globe, HelpCircle, Shield, Trash2, Save } from 'lucide-react';
+import { User, Lock, Palette, Globe, HelpCircle, Shield, Trash2, Save, Bell } from 'lucide-react';
+import Link from 'next/link';
 import { updateProfile } from 'firebase/auth';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db, auth } from '@/lib/firebase.config';
@@ -89,6 +90,7 @@ export default function SettingsPage() {
 
     const tabs = [
         { id: 'profile', label: 'Profile', icon: User },
+        { id: 'notifications', label: 'Notifications', icon: Bell },
         { id: 'privacy', label: 'Privacy & Security', icon: Lock },
         { id: 'appearance', label: 'Appearance', icon: Palette },
         { id: 'help', label: 'Help & Support', icon: HelpCircle },
@@ -208,6 +210,23 @@ export default function SettingsPage() {
                                         </div>
                                     )}
 
+
+                                    {/* Notifications Tab */}
+                                    {activeTab === 'notifications' && (
+                                        <div className="space-y-6">
+                                            <h2 className="text-2xl font-bold mb-4">Notification Settings</h2>
+                                            <p className="text-[hsl(var(--foreground-muted))] mb-6">
+                                                Manage your notification preferences and choose what notifications you want to receive.
+                                            </p>
+                                            <Link
+                                                href="/settings/notifications"
+                                                className="btn btn-primary inline-block"
+                                            >
+                                                <Bell className="w-4 h-4 mr-2" />
+                                                Go to Notification Settings
+                                            </Link>
+                                        </div>
+                                    )}
 
                                     {/* Privacy Tab */}
                                     {activeTab === 'privacy' && (

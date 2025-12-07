@@ -6,6 +6,36 @@ import { Timestamp } from 'firebase-admin/firestore';
 import { adminDb } from '@/lib/firebase-admin';
 import Stripe from 'stripe';
 
+// Helper function to create notification via admin SDK
+async function createNotificationAdmin(
+    userId: string,
+    type: string,
+    title: string,
+    message: string,
+    link?: string
+) {
+    try {
+        const notificationRef = adminDb
+            .collection('users')
+            .doc(userId)
+            .collection('notifications')
+            .doc();
+
+        await notificationRef.set({
+            id: notificationRef.id,
+            userId,
+            type,
+            title,
+            message,
+            link: link || '',
+            read: false,
+            createdAt: Timestamp.now(),
+        });
+    } catch (error) {
+        console.error('Error creating notification:', error);
+    }
+}
+
 export async function POST(request: NextRequest) {
     try {
         const body = await request.text();
@@ -96,6 +126,15 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
             stripeCustomerId: session.customer as string,
         });
 
+        // Create notification for premium plan purchase
+        await createNotificationAdmin(
+            userId,
+            'payment',
+            'Premium Plan Activated',
+            'Welcome to ReelTalk Premium! You now have access to exclusive content.',
+            '/premium'
+        );
+
         console.log(`Premium plan activated for user ${userId}`);
     } else if (type === 'creator_subscription') {
         // Activate creator subscription
@@ -104,6 +143,10 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
             console.error('No creatorId in session metadata');
             return;
         }
+
+        // Get creator name for notification
+        const creatorDoc = await adminDb.collection('users').doc(creatorId).get();
+        const creatorName = creatorDoc.data()?.displayName || 'Creator';
 
         // Use admin SDK to create subscription
         const subscription = {
@@ -130,6 +173,26 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
                 subscriberCount: (creatorSubDoc.data()?.subscriberCount || 0) + 1,
             });
         }
+
+        // Create notification for subscriber
+        await createNotificationAdmin(
+            userId,
+            'payment',
+            'Subscription Confirmed',
+            `You are now subscribed to ${creatorName}. Enjoy exclusive content!`,
+            `/profile/${creatorId}`
+        );
+
+        // Create notification for creator
+        const userDoc = await adminDb.collection('users').doc(userId).get();
+        const userName = userDoc.data()?.displayName || 'A user';
+        await createNotificationAdmin(
+            creatorId,
+            'payment',
+            'New Subscriber',
+            `${userName} subscribed to your channel!`,
+            `/subscriptions`
+        );
 
         console.log(`User ${userId} subscribed to creator ${creatorId}`);
     }

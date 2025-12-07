@@ -327,7 +327,8 @@ export default function LiveStreamPage() {
                 user.uid,
                 user.displayName || 'User',
                 user.photoURL || 'https://api.dicebear.com/7.x/avataaars/svg?seed=default',
-                commentText
+                commentText,
+                livestream.creatorId
             );
 
             setCommentText('');
